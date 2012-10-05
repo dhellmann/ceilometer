@@ -47,8 +47,6 @@
 """
 
 import datetime
-import logging
-import os
 import unittest
 
 from ming import mim
@@ -59,28 +57,7 @@ from nose.plugins import skip
 from ceilometer import counter
 from ceilometer import meter
 from ceilometer import storage
-from ceilometer.storage import impl_mongodb
-
-
-LOG = logging.getLogger(__name__)
-
-FORCING_MONGO = bool(int(os.environ.get('CEILOMETER_TEST_LIVE', 0)))
-
-
-class Connection(impl_mongodb.Connection):
-
-    def _get_connection(self, conf):
-        # Use a real MongoDB server if we can connect, but fall back
-        # to a Mongo-in-memory connection if we cannot.
-        if FORCING_MONGO:
-            try:
-                return super(Connection, self)._get_connection(conf)
-            except:
-                LOG.debug('Unable to connect to mongod')
-                raise
-        else:
-            LOG.debug('Unable to connect to mongod, falling back to MIM')
-            return mim.Connection()
+from ceilometer.tests.base import TestConnection
 
 
 class MongoDBEngineTestBase(unittest.TestCase):
@@ -90,16 +67,18 @@ class MongoDBEngineTestBase(unittest.TestCase):
     # causes issues if we allocate too many
     # Runtime objects in the same process.
     # http://davisp.lighthouseapp.com/projects/26898/tickets/22
+    # FIXME(sberler): TestConnection already handles making a singleton
+    # so do we need this here too?
+    DBNAME = 'testdb'
     conf = mox.Mox().CreateMockAnything()
-    conf.database_connection = 'mongodb://localhost/testdb'
-    conn = Connection(conf)
+    conf.database_connection = 'mongodb://localhost/%s' % DBNAME
+    conn = TestConnection(conf)
 
     def setUp(self):
         super(MongoDBEngineTestBase, self).setUp()
 
-        self.conn.conn.drop_database('testdb')
-        self.db = self.conn.conn['testdb']
-        self.conn.db = self.db
+        self.conn.conn.drop_database(self.DBNAME)
+        self.db = self.conn.conn[self.DBNAME]
 
         self.counter = counter.Counter(
             'test-1',
@@ -168,6 +147,9 @@ class MongoDBEngineTestBase(unittest.TestCase):
                 )
             msg = meter.meter_message_from_counter(c, 'not-so-secret')
             self.conn.record_metering_data(msg)
+
+    def tearDown(self):
+        self.conn.conn.drop_database(self.DBNAME)
 
 
 class UserTest(MongoDBEngineTestBase):
