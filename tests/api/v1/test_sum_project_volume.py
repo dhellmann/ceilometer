@@ -55,7 +55,6 @@ class TestSumProjectVolume(tests_api.TestBase):
                 'project1',
                 'resource-id-%s' % i,
                 timestamp=datetime.datetime(2012, 9, 25, 10 + i, 30 + i),
-                duration=0,
                 resource_metadata={'display_name': 'test-volume',
                                    'tag': 'self.counter',
                                    }
