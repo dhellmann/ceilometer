@@ -102,6 +102,13 @@ def _list_resources(source=None, user=None, project=None,
             ))
 
 
+def _list_projects(source=None):
+    """Return a list of project names.
+    """
+    projects = request.storage_conn.get_projects(source=source)
+    return list(projects)
+
+
 class ResourcesController(RestController):
     """Works on resources."""
 
@@ -135,6 +142,12 @@ class ProjectsController(RestController):
     def _lookup(self, project_id, *remainder):
         return ProjectController(project_id), remainder
 
+    @expose('json')
+    def get_all(self):
+        source_id = request.context.get('source_id')
+        return {'projects': _list_projects(source=source_id),
+                }
+
 
 class SourceController(RestController):
     """Works on resources."""
@@ -143,6 +156,7 @@ class SourceController(RestController):
         request.context['source_id'] = source_id
 
     resources = ResourcesController()
+    projects = ProjectsController()
 
 
 class SourcesController(RestController):
