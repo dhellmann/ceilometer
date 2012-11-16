@@ -18,6 +18,8 @@ class FunctionalTest(TestCase):
 
     DBNAME = 'testdb'
 
+    PATH_PREFIX = ''
+
     def setUp(self):
 
         cfg.CONF.database_connection = 'test://localhost/%s' % self.DBNAME
