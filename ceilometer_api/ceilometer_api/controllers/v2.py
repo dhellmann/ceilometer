@@ -109,6 +109,13 @@ def _list_projects(source=None):
     return list(projects)
 
 
+def _list_users(source=None):
+    """Return a list of user names.
+    """
+    users = request.storage_conn.get_users(source=source)
+    return list(users)
+
+
 class ResourcesController(RestController):
     """Works on resources."""
 
@@ -149,24 +156,6 @@ class ProjectsController(RestController):
                 }
 
 
-class SourceController(RestController):
-    """Works on resources."""
-
-    def __init__(self, source_id):
-        request.context['source_id'] = source_id
-
-    resources = ResourcesController()
-    projects = ProjectsController()
-
-
-class SourcesController(RestController):
-    """Works on sources."""
-
-    @expose('json')
-    def _lookup(self, source_id, *remainder):
-        return SourceController(source_id), remainder
-
-
 class UserController(RestController):
     """Works on reusers."""
 
@@ -182,6 +171,31 @@ class UsersController(RestController):
     @expose('json')
     def _lookup(self, user_id, *remainder):
         return UserController(user_id), remainder
+
+    @expose('json')
+    def get_all(self):
+        source_id = request.context.get('source_id')
+        return {'users': _list_users(source=source_id),
+                }
+
+
+class SourceController(RestController):
+    """Works on resources."""
+
+    def __init__(self, source_id):
+        request.context['source_id'] = source_id
+
+    resources = ResourcesController()
+    projects = ProjectsController()
+    users = UsersController()
+
+
+class SourcesController(RestController):
+    """Works on sources."""
+
+    @expose('json')
+    def _lookup(self, source_id, *remainder):
+        return SourceController(source_id), remainder
 
 
 class V2Controller(object):
