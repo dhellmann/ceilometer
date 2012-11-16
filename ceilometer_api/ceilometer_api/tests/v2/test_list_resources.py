@@ -25,14 +25,12 @@ from ceilometer import counter
 from ceilometer import meter
 from ceilometer.openstack.common import cfg
 
-from ceilometer_api.tests import FunctionalTest
+from ceilometer_api.tests.v2 import FunctionalTest
 
 LOG = logging.getLogger(__name__)
 
 
 class TestListResources(FunctionalTest):
-
-    PATH_PREFIX = '/v2'
 
     def test_empty(self):
         data = self.get_json('/resources')
