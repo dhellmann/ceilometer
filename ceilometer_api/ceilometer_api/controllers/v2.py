@@ -83,6 +83,10 @@ from pecan import expose, request
 from pecan.rest import RestController
 
 from ceilometer.openstack.common import timeutils
+from ceilometer import storage
+
+
+LOG = logging.getLogger(__name__)
 
 
 def _list_resources(source=None, user=None, project=None,
@@ -116,8 +120,123 @@ def _list_users(source=None):
     return list(users)
 
 
+def _get_query_timestamps(args={}):
+    # Determine the desired range, if any, from the
+    # GET arguments. Set up the query range using
+    # the specified offset.
+    # [query_start ... start_timestamp ... end_timestamp ... query_end]
+    search_offset = int(args.get('search_offset', 0))
+
+    start_timestamp = args.get('start_timestamp')
+    if start_timestamp:
+        start_timestamp = timeutils.parse_isotime(start_timestamp)
+        start_timestamp = start_timestamp.replace(tzinfo=None)
+        query_start = (start_timestamp -
+                       datetime.timedelta(minutes=search_offset))
+    else:
+        query_start = None
+
+    end_timestamp = args.get('end_timestamp')
+    if end_timestamp:
+        end_timestamp = timeutils.parse_isotime(end_timestamp)
+        end_timestamp = end_timestamp.replace(tzinfo=None)
+        query_end = end_timestamp + datetime.timedelta(minutes=search_offset)
+    else:
+        query_end = None
+
+    return dict(query_start=query_start,
+                query_end=query_end,
+                start_timestamp=start_timestamp,
+                end_timestamp=end_timestamp,
+                search_offset=search_offset,
+                )
+
+
+class MeterController(RestController):
+
+    _custom_actions = {
+        'duration': ['GET'],
+        }
+
+    def __init__(self, meter_id):
+        request.context['meter_id'] = meter_id
+        self._id = meter_id
+
+    @expose('json')
+    def duration(self):
+        q_ts = _get_query_timestamps(request.params)
+        start_timestamp = q_ts['start_timestamp']
+        end_timestamp = q_ts['end_timestamp']
+
+        # Query the database for the interval of timestamps
+        # within the desired range.
+        f = storage.EventFilter(user=request.context.get('user_id'),
+                                project=request.context.get('project_id'),
+                                start=q_ts['query_start'],
+                                end=q_ts['query_end'],
+                                resource=request.context.get('resource_id'),
+                                meter=self._id,
+                                source=request.context.get('source_id'),
+                                )
+        min_ts, max_ts = request.storage_conn.get_event_interval(f)
+
+        # "Clamp" the timestamps we return to the original time
+        # range, excluding the offset.
+        LOG.debug('start_timestamp %s, end_timestamp %s, min_ts %s, max_ts %s',
+                  start_timestamp, end_timestamp, min_ts, max_ts)
+        if start_timestamp and min_ts and min_ts < start_timestamp:
+            min_ts = start_timestamp
+            LOG.debug('clamping min timestamp to range')
+        if end_timestamp and max_ts and max_ts > end_timestamp:
+            max_ts = end_timestamp
+            LOG.debug('clamping max timestamp to range')
+
+        # If we got valid timestamps back, compute a duration in minutes.
+        #
+        # If the min > max after clamping then we know the
+        # timestamps on the events fell outside of the time
+        # range we care about for the query, so treat them as
+        # "invalid."
+        #
+        # If the timestamps are invalid, return None as a
+        # sentinal indicating that there is something "funny"
+        # about the range.
+        if min_ts and max_ts and (min_ts <= max_ts):
+            # Can't use timedelta.total_seconds() because
+            # it is not available in Python 2.6.
+            diff = max_ts - min_ts
+            duration = (diff.seconds + (diff.days * 24 * 60 ** 2)) / 60
+        else:
+            min_ts = max_ts = duration = None
+
+        return {'start_timestamp': min_ts,
+                'end_timestamp': max_ts,
+                'duration': duration,
+                }
+
+
+class MetersController(RestController):
+    """Works on meters."""
+
+    @expose()
+    def _lookup(self, meter_id, *remainder):
+        return MeterController(meter_id), remainder
+
+
+class ResourceController(RestController):
+
+    def __init__(self, resource_id):
+        request.context['resource_id'] = resource_id
+
+    meters = MetersController()
+
+
 class ResourcesController(RestController):
     """Works on resources."""
+
+    @expose()
+    def _lookup(self, resource_id, *remainder):
+        return ResourceController(resource_id), remainder
 
     @expose('json')
     def get_all(self, start_timestamp=None, end_timestamp=None):
@@ -145,7 +264,7 @@ class ProjectController(RestController):
 class ProjectsController(RestController):
     """Works on projects."""
 
-    @expose('json')
+    @expose()
     def _lookup(self, project_id, *remainder):
         return ProjectController(project_id), remainder
 
@@ -168,7 +287,7 @@ class UserController(RestController):
 class UsersController(RestController):
     """Works on users."""
 
-    @expose('json')
+    @expose()
     def _lookup(self, user_id, *remainder):
         return UserController(user_id), remainder
 
@@ -193,7 +312,7 @@ class SourceController(RestController):
 class SourcesController(RestController):
     """Works on sources."""
 
-    @expose('json')
+    @expose()
     def _lookup(self, source_id, *remainder):
         return SourceController(source_id), remainder
 
