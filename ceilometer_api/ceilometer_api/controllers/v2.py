@@ -89,6 +89,26 @@ from ceilometer import storage
 LOG = logging.getLogger(__name__)
 
 
+def _list_events(meter,
+                 project=None,
+                 start=None,
+                 end=None,
+                 resource=None,
+                 source=None,
+                 user=None):
+    """Return a list of raw metering events.
+    """
+    f = storage.EventFilter(user=user,
+                            project=project,
+                            start=start,
+                            end=end,
+                            source=source,
+                            meter=meter,
+                            resource=resource,
+                            )
+    return list(request.storage_conn.get_raw_events(f))
+
+
 def _list_resources(source=None, user=None, project=None,
                     start_timestamp=None, end_timestamp=None):
     """Return a list of resource identifiers.
@@ -161,6 +181,21 @@ class MeterController(RestController):
     def __init__(self, meter_id):
         request.context['meter_id'] = meter_id
         self._id = meter_id
+
+    @expose('json')
+    def get_all(self):
+        """Return all events for the meter.
+        """
+        q_ts = _get_query_timestamps(request.params)
+        events = _list_events(user=request.context.get('user_id'),
+                              project=request.context.get('project_id'),
+                              start=q_ts['query_start'],
+                              end=q_ts['query_end'],
+                              resource=request.context.get('resource_id'),
+                              meter=self._id,
+                              source=request.context.get('source_id'),
+                              )
+        return {'events': events}
 
     @expose('json')
     def duration(self):
@@ -258,6 +293,7 @@ class ProjectController(RestController):
     def __init__(self, project_id):
         request.context['project_id'] = project_id
 
+    meters = MetersController()
     resources = ResourcesController()
 
 
@@ -274,6 +310,8 @@ class ProjectsController(RestController):
         return {'projects': _list_projects(source=source_id),
                 }
 
+    meters = MetersController()
+
 
 class UserController(RestController):
     """Works on reusers."""
@@ -281,6 +319,7 @@ class UserController(RestController):
     def __init__(self, user_id):
         request.context['user_id'] = user_id
 
+    meters = MetersController()
     resources = ResourcesController()
 
 
@@ -304,6 +343,7 @@ class SourceController(RestController):
     def __init__(self, source_id):
         request.context['source_id'] = source_id
 
+    meters = MetersController()
     resources = ResourcesController()
     projects = ProjectsController()
     users = UsersController()
