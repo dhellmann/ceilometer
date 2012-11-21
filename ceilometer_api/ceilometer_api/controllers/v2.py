@@ -215,6 +215,45 @@ class MeterVolumeController(object):
 
         return {'volume': value}
 
+    @expose('json')
+    def sum(self):
+        q_ts = _get_query_timestamps(request.params)
+
+        try:
+            meter = request.context['meter_id']
+        except KeyError:
+            raise ValueError('No meter specified')
+
+        resource = request.context.get('resource_id')
+        project = request.context.get('project_id')
+
+        f = storage.EventFilter(meter=meter,
+                                project=project,
+                                start=q_ts['query_start'],
+                                end=q_ts['query_end'],
+                                resource=resource,
+                                )
+
+        # TODO(sberler): do we want to return an error if the resource
+        # does not exist?
+        results = list(request.storage_conn.get_volume_sum(f))
+
+        value = None
+        if results:
+            if resource:
+                # If the caller specified a resource there should only
+                # be one result.
+                value = results[0].get('value')
+            else:
+                # FIXME(sberler): Currently get_volume_max is really
+                # always grouping by resource_id.  We should add a new
+                # function in the storage driver that does not do this
+                # grouping (and potentially rename the existing one to
+                # get_volume_max_by_resource())
+                value = sum(result.get('value') for result in results)
+
+        return {'volume': value}
+
 
 class MeterController(RestController):
 
