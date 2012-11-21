@@ -82,6 +82,7 @@ import os
 from pecan import expose, request
 from pecan.rest import RestController
 
+from ceilometer.openstack.common import jsonutils
 from ceilometer.openstack.common import timeutils
 from ceilometer import storage
 
@@ -340,8 +341,14 @@ class UsersController(RestController):
 class SourceController(RestController):
     """Works on resources."""
 
-    def __init__(self, source_id):
+    def __init__(self, source_id, data):
         request.context['source_id'] = source_id
+        self._id = source_id
+        self._data = data
+
+    @expose('json')
+    def get(self):
+        return self._data
 
     meters = MetersController()
     resources = ResourcesController()
@@ -352,9 +359,39 @@ class SourceController(RestController):
 class SourcesController(RestController):
     """Works on sources."""
 
+    def __init__(self):
+        self._sources = None
+
+    @property
+    def sources(self):
+        # FIXME(dhellmann): Add a configuration option for the filename.
+        #
+        # FIXME(dhellmann): We only want to load the file once in a process,
+        # but we want to be able to mock the loading out in separate tests.
+        #
+        if not self._sources:
+            self._sources = self._load_sources(os.path.abspath("sources.json"))
+        return self._sources
+
+    @staticmethod
+    def _load_sources(filename):
+        try:
+            with open(filename, "r") as f:
+                sources = jsonutils.load(f)
+        except IOError as err:
+            LOG.warning('Could not load data source definitions from %s: %s' %
+                        (filename, err))
+            sources = {}
+        return sources
+
     @expose()
     def _lookup(self, source_id, *remainder):
-        return SourceController(source_id), remainder
+        return (SourceController(source_id, self.sources.get(source_id, {})),
+                remainder)
+
+    @expose('json')
+    def get_all(self):
+        return self.sources
 
 
 class V2Controller(object):
