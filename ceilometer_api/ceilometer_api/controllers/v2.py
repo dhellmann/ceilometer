@@ -90,62 +90,23 @@ from ceilometer import storage
 LOG = logging.getLogger(__name__)
 
 
-def _list_events(meter,
-                 project=None,
-                 start=None,
-                 end=None,
-                 resource=None,
-                 source=None,
-                 user=None):
-    """Return a list of raw metering events.
-    """
-    f = storage.EventFilter(user=user,
-                            project=project,
-                            start=start,
-                            end=end,
-                            source=source,
-                            meter=meter,
-                            resource=resource,
-                            )
-    return list(request.storage_conn.get_raw_events(f))
-
-
-def _list_resources(source=None, user=None, project=None,
-                    start_timestamp=None, end_timestamp=None):
-    """Return a list of resource identifiers.
-    """
-    if start_timestamp:
-        start_timestamp = timeutils.parse_isotime(start_timestamp)
-    if end_timestamp:
-        end_timestamp = timeutils.parse_isotime(end_timestamp)
-    return list(request.storage_conn.get_resources(
-            source=source,
-            user=user,
-            project=project,
-            start_timestamp=start_timestamp,
-            end_timestamp=end_timestamp,
-            ))
-
-
-def _list_projects(source=None):
-    """Return a list of project names.
-    """
-    projects = request.storage_conn.get_projects(source=source)
-    return list(projects)
-
-
-def _list_users(source=None):
-    """Return a list of user names.
-    """
-    users = request.storage_conn.get_users(source=source)
-    return list(users)
-
-
 def _get_query_timestamps(args={}):
-    # Determine the desired range, if any, from the
-    # GET arguments. Set up the query range using
-    # the specified offset.
-    # [query_start ... start_timestamp ... end_timestamp ... query_end]
+    """Return any optional timestamp information in the request.
+
+    Determine the desired range, if any, from the GET arguments. Set
+    up the query range using the specified offset.
+
+    [query_start ... start_timestamp ... end_timestamp ... query_end]
+
+    Returns a dictionary containing:
+
+    query_start: First timestamp to use for query
+    start_timestamp: start_timestamp parameter from request
+    query_end: Final timestamp to use for query
+    end_timestamp: end_timestamp parameter from request
+    search_offset: search_offset parameter from request
+
+    """
     search_offset = int(args.get('search_offset', 0))
 
     start_timestamp = args.get('start_timestamp')
@@ -165,18 +126,20 @@ def _get_query_timestamps(args={}):
     else:
         query_end = None
 
-    return dict(query_start=query_start,
-                query_end=query_end,
-                start_timestamp=start_timestamp,
-                end_timestamp=end_timestamp,
-                search_offset=search_offset,
-                )
+    return {'query_start': query_start,
+            'query_end': query_end,
+            'start_timestamp': start_timestamp,
+            'end_timestamp': end_timestamp,
+            'search_offset': search_offset,
+            }
 
 
 class MeterVolumeController(object):
 
     @expose('json')
     def max(self):
+        """Find the maximum volume for the matching meter events.
+        """
         q_ts = _get_query_timestamps(request.params)
 
         try:
@@ -217,6 +180,8 @@ class MeterVolumeController(object):
 
     @expose('json')
     def sum(self):
+        """Compute the total volume for the matching meter events.
+        """
         q_ts = _get_query_timestamps(request.params)
 
         try:
@@ -256,6 +221,8 @@ class MeterVolumeController(object):
 
 
 class MeterController(RestController):
+    """Manages operations on a single meter.
+    """
 
     volume = MeterVolumeController()
 
@@ -272,18 +239,22 @@ class MeterController(RestController):
         """Return all events for the meter.
         """
         q_ts = _get_query_timestamps(request.params)
-        events = _list_events(user=request.context.get('user_id'),
-                              project=request.context.get('project_id'),
-                              start=q_ts['query_start'],
-                              end=q_ts['query_end'],
-                              resource=request.context.get('resource_id'),
-                              meter=self._id,
-                              source=request.context.get('source_id'),
-                              )
+        f = storage.EventFilter(
+            user=request.context.get('user_id'),
+            project=request.context.get('project_id'),
+            start=q_ts['query_start'],
+            end=q_ts['query_end'],
+            resource=request.context.get('resource_id'),
+            meter=self._id,
+            source=request.context.get('source_id'),
+            )
+        events = list(request.storage_conn.get_raw_events(f))
         return {'events': events}
 
     @expose('json')
     def duration(self):
+        """Computes the duration of the meter events in the time range given.
+        """
         q_ts = _get_query_timestamps(request.params)
         start_timestamp = q_ts['start_timestamp']
         end_timestamp = q_ts['end_timestamp']
@@ -344,6 +315,8 @@ class MetersController(RestController):
 
 
 class ResourceController(RestController):
+    """Manages operations on a single resource.
+    """
 
     def __init__(self, resource_id):
         request.context['resource_id'] = resource_id
@@ -360,16 +333,19 @@ class ResourcesController(RestController):
 
     @expose('json')
     def get_all(self, start_timestamp=None, end_timestamp=None):
-        project_id = request.context.get('project_id')
-        source_id = request.context.get('source_id')
-        user_id = request.context.get('user_id')
-        return {'resources': _list_resources(project=project_id,
-                                             source=source_id,
-                                             user=user_id,
-                                             start_timestamp=start_timestamp,
-                                             end_timestamp=end_timestamp,
-                                             ),
-                }
+        if start_timestamp:
+            start_timestamp = timeutils.parse_isotime(start_timestamp)
+        if end_timestamp:
+            end_timestamp = timeutils.parse_isotime(end_timestamp)
+
+        resources = list(request.storage_conn.get_resources(
+                source=request.context.get('source_id'),
+                user=request.context.get('user_id'),
+                project=request.context.get('project_id'),
+                start_timestamp=start_timestamp,
+                end_timestamp=end_timestamp,
+                ))
+        return {'resources': resources}
 
 
 class ProjectController(RestController):
@@ -392,8 +368,8 @@ class ProjectsController(RestController):
     @expose('json')
     def get_all(self):
         source_id = request.context.get('source_id')
-        return {'projects': _list_projects(source=source_id),
-                }
+        projects = list(request.storage_conn.get_projects(source=source_id))
+        return {'projects': projects}
 
     meters = MetersController()
 
@@ -418,8 +394,8 @@ class UsersController(RestController):
     @expose('json')
     def get_all(self):
         source_id = request.context.get('source_id')
-        return {'users': _list_users(source=source_id),
-                }
+        users = list(request.storage_conn.get_users(source=source_id))
+        return {'users': users}
 
 
 class SourceController(RestController):
