@@ -27,8 +27,15 @@ from ceilometer.version import version_info
 requires = common_setup.parse_requirements(['tools/pip-requires'])
 depend_links = common_setup.parse_dependency_links(['tools/pip-requires'])
 
-url_base = 'http://tarballs.openstack.org/ceilometer/ceilometer-%s.tar.gz'
-version_string = version_info.canonical_version_string(always=True)
+url_base = 'http://tarballs.openstack.org/ceilometer/'
+try:
+    version_string = version_info.canonical_version_string(always=True)
+    download_url = url_base + ('ceilometer-%s.tar.gz' % version_string)
+except:
+    # Provide a valid, if useless, default in case the git
+    # commands used to populate version_info fail.
+    version_string = '0.0.0'
+    download_url = url_base
 
 
 def directories(target_dir):
@@ -47,7 +54,7 @@ setuptools.setup(
     author_email='ceilometer@lists.launchpad.net',
 
     url='https://launchpad.net/ceilometer',
-    download_url=url_base % version_string,
+    download_url=download_url,
 
     classifiers=[
         'Development Status :: 3 - Alpha',
