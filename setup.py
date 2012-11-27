@@ -22,19 +22,19 @@ import os
 import setuptools
 
 from ceilometer.openstack.common import setup as common_setup
-from ceilometer.version import version_info
 
 requires = common_setup.parse_requirements(['tools/pip-requires'])
 depend_links = common_setup.parse_dependency_links(['tools/pip-requires'])
 
 url_base = 'http://tarballs.openstack.org/ceilometer/'
 try:
+    from ceilometer.version import version_info
     version_string = version_info.canonical_version_string(always=True)
     download_url = url_base + ('ceilometer-%s.tar.gz' % version_string)
 except:
     # Provide a valid, if useless, default in case the git
     # commands used to populate version_info fail.
-    version_string = '0.0.0'
+    version_string = 'development'
     download_url = url_base
 
 
