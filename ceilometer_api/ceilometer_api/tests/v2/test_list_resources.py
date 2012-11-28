@@ -32,9 +32,11 @@ LOG = logging.getLogger(__name__)
 
 class TestListResources(FunctionalTest):
 
+    SOURCE_DATA = {'test_list_resources': {}}
+
     def test_empty(self):
         data = self.get_json('/resources')
-        self.assertEquals({u'resources': []}, data)
+        self.assertEquals([], data)
 
     def test_instances(self):
         counter1 = counter.Counter(
@@ -74,7 +76,7 @@ class TestListResources(FunctionalTest):
         self.conn.record_metering_data(msg2)
 
         data = self.get_json('/resources')
-        self.assertEquals(2, len(data['resources']))
+        self.assertEquals(2, len(data))
 
     def test_with_source(self):
         counter1 = counter.Counter(
@@ -114,7 +116,7 @@ class TestListResources(FunctionalTest):
         self.conn.record_metering_data(msg2)
 
         data = self.get_json('/sources/test_list_resources/resources')
-        ids = [r['resource_id'] for r in data['resources']]
+        ids = [r['resource_id'] for r in data]
         self.assertEquals(['resource-id'], ids)
 
     def test_with_user(self):
@@ -155,7 +157,7 @@ class TestListResources(FunctionalTest):
         self.conn.record_metering_data(msg2)
 
         data = self.get_json('/users/user-id/resources')
-        ids = [r['resource_id'] for r in data['resources']]
+        ids = [r['resource_id'] for r in data]
         self.assertEquals(['resource-id'], ids)
 
     def test_with_project(self):
@@ -196,5 +198,5 @@ class TestListResources(FunctionalTest):
         self.conn.record_metering_data(msg2)
 
         data = self.get_json('/projects/project-id/resources')
-        ids = [r['resource_id'] for r in data['resources']]
+        ids = [r['resource_id'] for r in data]
         self.assertEquals(['resource-id'], ids)

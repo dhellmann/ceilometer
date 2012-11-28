@@ -35,7 +35,7 @@ class TestListProjects(FunctionalTest):
 
     def test_empty(self):
         data = self.get_json('/projects')
-        self.assertEquals({'projects': []}, data)
+        self.assertEquals([], data)
 
     def test_projects(self):
         counter1 = counter.Counter(
@@ -52,7 +52,7 @@ class TestListProjects(FunctionalTest):
             )
         msg = meter.meter_message_from_counter(counter1,
                                                cfg.CONF.metering_secret,
-                                               'test_list_projects',
+                                               'test_source',
                                                )
         self.conn.record_metering_data(msg)
 
@@ -70,12 +70,12 @@ class TestListProjects(FunctionalTest):
             )
         msg2 = meter.meter_message_from_counter(counter2,
                                                 cfg.CONF.metering_secret,
-                                                'test_list_users',
+                                                'test_source',
                                                 )
         self.conn.record_metering_data(msg2)
 
         data = self.get_json('/projects')
-        self.assertEquals(['project-id', 'project-id2'], data['projects'])
+        self.assertEquals(['project-id', 'project-id2'], data)
 
     def test_with_source(self):
         counter1 = counter.Counter(
@@ -92,7 +92,7 @@ class TestListProjects(FunctionalTest):
             )
         msg = meter.meter_message_from_counter(counter1,
                                                cfg.CONF.metering_secret,
-                                               'test_list_users',
+                                               'test_source',
                                                )
         self.conn.record_metering_data(msg)
 
@@ -114,5 +114,5 @@ class TestListProjects(FunctionalTest):
                                                 )
         self.conn.record_metering_data(msg2)
 
-        data = self.get_json('/sources/test_list_users/projects')
-        self.assertEquals(['project-id'], data['projects'])
+        data = self.get_json('/sources/test_source/projects')
+        self.assertEquals(['project-id'], data)

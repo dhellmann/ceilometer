@@ -48,7 +48,7 @@ class TestListEvents(FunctionalTest):
             )
         msg = meter.meter_message_from_counter(self.counter1,
                                                cfg.CONF.metering_secret,
-                                               'source1',
+                                               'test_source',
                                                )
         self.conn.record_metering_data(msg)
 
@@ -72,36 +72,37 @@ class TestListEvents(FunctionalTest):
 
     def test_all(self):
         data = self.get_json('/resources')
-        self.assertEquals(2, len(data['resources']))
+        self.assertEquals(2, len(data))
 
     def test_empty_project(self):
         data = self.get_json('/projects/no-such-project/meters/instance')
-        self.assertEquals({'events': []}, data)
+        self.assertEquals([], data)
 
     def test_by_project(self):
         data = self.get_json('/projects/project1/meters/instance')
-        self.assertEquals(1, len(data['events']))
+        self.assertEquals(1, len(data))
 
     def test_empty_resource(self):
         data = self.get_json('/resources/no-such-resource/meters/instance')
-        self.assertEquals({'events': []}, data)
+        self.assertEquals([], data)
 
     def test_by_resource(self):
         data = self.get_json('/resources/resource-id/meters/instance')
-        self.assertEquals(1, len(data['events']))
+        self.assertEquals(1, len(data))
 
     def test_empty_source(self):
-        data = self.get_json('/sources/no-such-source/meters/instance')
-        self.assertEquals({'events': []}, data)
+        data = self.get_json('/sources/no-such-source/meters/instance',
+                             expect_errors=True)
+        self.assertEquals(data.status_code, 404)
 
     def test_by_source(self):
-        data = self.get_json('/sources/source1/meters/instance')
-        self.assertEquals(1, len(data['events']))
+        data = self.get_json('/sources/test_source/meters/instance')
+        self.assertEquals(1, len(data))
 
     def test_empty_user(self):
         data = self.get_json('/users/no-such-user/meters/instance')
-        self.assertEquals({'events': []}, data)
+        self.assertEquals([], data)
 
     def test_by_user(self):
         data = self.get_json('/users/user-id/meters/instance')
-        self.assertEquals(1, len(data['events']))
+        self.assertEquals(1, len(data))

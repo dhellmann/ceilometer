@@ -79,8 +79,13 @@ import datetime
 import logging
 import os
 
-from pecan import expose, request
+import pecan
+from pecan import request
 from pecan.rest import RestController
+
+import wsme
+import wsme.pecan
+from wsme.types import Base, text, wsattr
 
 from ceilometer.openstack.common import jsonutils
 from ceilometer.openstack.common import timeutils
@@ -134,9 +139,19 @@ def _get_query_timestamps(args={}):
             }
 
 
+# FIXME(dhellmann): Change APIs that use this to return float?
+class MeterVolume(Base):
+    volume = wsattr(float, mandatory=False)
+
+    def __init__(self, volume, **kw):
+        if volume is not None:
+            volume = float(volume)
+        super(MeterVolume, self).__init__(volume=volume, **kw)
+
+
 class MeterVolumeController(object):
 
-    @expose('json')
+    @wsme.pecan.wsexpose(MeterVolume)
     def max(self):
         """Find the maximum volume for the matching meter events.
         """
@@ -176,9 +191,9 @@ class MeterVolumeController(object):
                 # get_volume_max_by_resource())
                 value = max(result.get('value') for result in results)
 
-        return {'volume': value}
+        return MeterVolume(volume=value)
 
-    @expose('json')
+    @wsme.pecan.wsexpose(MeterVolume)
     def sum(self):
         """Compute the total volume for the matching meter events.
         """
@@ -217,7 +232,32 @@ class MeterVolumeController(object):
                 # get_volume_max_by_resource())
                 value = sum(result.get('value') for result in results)
 
-        return {'volume': value}
+        return MeterVolume(volume=value)
+
+
+class Event(Base):
+    source = text
+    counter_name = text
+    counter_type = text
+    counter_volume = float
+    user_id = text
+    project_id = text
+    resource_id = text
+    timestamp = datetime.datetime
+    #resource_metadata = ?
+    message_id = text
+
+    def __init__(self, counter_volume=None, **kwds):
+        if counter_volume is not None:
+            counter_volume = float(counter_volume)
+        super(Event, self).__init__(counter_volume=counter_volume,
+                                    **kwds)
+
+
+class Duration(Base):
+    start_timestamp = datetime.datetime
+    end_timestamp = datetime.datetime
+    duration = float
 
 
 class MeterController(RestController):
@@ -234,7 +274,7 @@ class MeterController(RestController):
         request.context['meter_id'] = meter_id
         self._id = meter_id
 
-    @expose('json')
+    @wsme.pecan.wsexpose([Event])
     def get_all(self):
         """Return all events for the meter.
         """
@@ -248,10 +288,11 @@ class MeterController(RestController):
             meter=self._id,
             source=request.context.get('source_id'),
             )
-        events = list(request.storage_conn.get_raw_events(f))
-        return {'events': events}
+        return [Event(**e)
+                for e in request.storage_conn.get_raw_events(f)
+                ]
 
-    @expose('json')
+    @wsme.pecan.wsexpose(Duration)
     def duration(self):
         """Computes the duration of the meter events in the time range given.
         """
@@ -300,16 +341,16 @@ class MeterController(RestController):
         else:
             min_ts = max_ts = duration = None
 
-        return {'start_timestamp': min_ts,
-                'end_timestamp': max_ts,
-                'duration': duration,
-                }
+        return Duration(start_timestamp=min_ts,
+                        end_timestamp=max_ts,
+                        duration=duration,
+                        )
 
 
 class MetersController(RestController):
     """Works on meters."""
 
-    @expose()
+    @pecan.expose()
     def _lookup(self, meter_id, *remainder):
         return MeterController(meter_id), remainder
 
@@ -324,28 +365,48 @@ class ResourceController(RestController):
     meters = MetersController()
 
 
+class MeterDescription(Base):
+    counter_name = text
+    counter_type = text
+
+
+class Resource(Base):
+    resource_id = text
+    project_id = text
+    user_id = text
+    timestamp = datetime.datetime
+    #metadata = ?
+    meter = wsattr([MeterDescription])
+
+    def __init__(self, meter=[], **kwds):
+        meter = [MeterDescription(**m) for m in meter]
+        super(Resource, self).__init__(meter=meter, **kwds)
+
+
 class ResourcesController(RestController):
     """Works on resources."""
 
-    @expose()
+    @pecan.expose()
     def _lookup(self, resource_id, *remainder):
         return ResourceController(resource_id), remainder
 
-    @expose('json')
+    @wsme.pecan.wsexpose([Resource])
     def get_all(self, start_timestamp=None, end_timestamp=None):
         if start_timestamp:
             start_timestamp = timeutils.parse_isotime(start_timestamp)
         if end_timestamp:
             end_timestamp = timeutils.parse_isotime(end_timestamp)
 
-        resources = list(request.storage_conn.get_resources(
+        resources = [
+            Resource(**r)
+            for r in request.storage_conn.get_resources(
                 source=request.context.get('source_id'),
                 user=request.context.get('user_id'),
                 project=request.context.get('project_id'),
                 start_timestamp=start_timestamp,
                 end_timestamp=end_timestamp,
-                ))
-        return {'resources': resources}
+                )]
+        return resources
 
 
 class ProjectController(RestController):
@@ -361,15 +422,15 @@ class ProjectController(RestController):
 class ProjectsController(RestController):
     """Works on projects."""
 
-    @expose()
+    @pecan.expose()
     def _lookup(self, project_id, *remainder):
         return ProjectController(project_id), remainder
 
-    @expose('json')
+    @wsme.pecan.wsexpose([text])
     def get_all(self):
         source_id = request.context.get('source_id')
         projects = list(request.storage_conn.get_projects(source=source_id))
-        return {'projects': projects}
+        return projects
 
     meters = MetersController()
 
@@ -387,15 +448,20 @@ class UserController(RestController):
 class UsersController(RestController):
     """Works on users."""
 
-    @expose()
+    @pecan.expose()
     def _lookup(self, user_id, *remainder):
         return UserController(user_id), remainder
 
-    @expose('json')
+    @wsme.pecan.wsexpose([text])
     def get_all(self):
         source_id = request.context.get('source_id')
         users = list(request.storage_conn.get_users(source=source_id))
-        return {'users': users}
+        return users
+
+
+class Source(Base):
+    name = text
+    data = {text: text}
 
 
 class SourceController(RestController):
@@ -406,9 +472,11 @@ class SourceController(RestController):
         self._id = source_id
         self._data = data
 
-    @expose('json')
+    @wsme.pecan.wsexpose(Source)
     def get(self):
-        return self._data
+        response = Source(name=self._id, data=self._data)
+        print 'RETURNING:', response
+        return response
 
     meters = MetersController()
     resources = ResourcesController()
@@ -444,14 +512,19 @@ class SourcesController(RestController):
             sources = {}
         return sources
 
-    @expose()
+    @pecan.expose()
     def _lookup(self, source_id, *remainder):
-        return (SourceController(source_id, self.sources.get(source_id, {})),
-                remainder)
+        try:
+            data = self.sources[source_id]
+        except KeyError:
+            # Unknown source
+            pecan.abort(404, detail='No source %s' % source_id)
+        return SourceController(source_id, data), remainder
 
-    @expose('json')
+    @wsme.pecan.wsexpose([Source])
     def get_all(self):
-        return self.sources
+        return [Source(name=key, data=value)
+                for key, value in self.sources.iteritems()]
 
 
 class V2Controller(object):
