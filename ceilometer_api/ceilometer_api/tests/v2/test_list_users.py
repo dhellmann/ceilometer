@@ -33,9 +33,11 @@ LOG = logging.getLogger(__name__)
 
 class TestListUsers(FunctionalTest):
 
+    SOURCE_DATA = {'test_list_users': {}}
+
     def test_empty(self):
         data = self.get_json('/users')
-        self.assertEquals({'users': []}, data)
+        self.assertEquals([], data)
 
     def test_users(self):
         counter1 = counter.Counter(
@@ -75,7 +77,7 @@ class TestListUsers(FunctionalTest):
         self.conn.record_metering_data(msg2)
 
         data = self.get_json('/users')
-        self.assertEquals(['user-id', 'user-id2'], data['users'])
+        self.assertEquals(['user-id', 'user-id2'], data)
 
     def test_with_source(self):
         counter1 = counter.Counter(
@@ -115,4 +117,4 @@ class TestListUsers(FunctionalTest):
         self.conn.record_metering_data(msg2)
 
         data = self.get_json('/sources/test_list_users/users')
-        self.assertEquals(['user-id'], data['users'])
+        self.assertEquals(['user-id'], data)

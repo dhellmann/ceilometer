@@ -25,23 +25,25 @@ from ceilometer_api.tests.v2 import FunctionalTest
 
 class TestListSource(FunctionalTest):
 
-    TEST_DATA = {'test_source': {'somekey': 666}}
-    LOAD_FUNC_NAME = 'ceilometer_api.controllers.v2.SourcesController._load_sources'
-
-    def _get(self, path):
-        with mock.patch(self.LOAD_FUNC_NAME) as m:
-            m.return_value = self.TEST_DATA
-            return self.get_json(path)
-
     def test_all(self):
-        ydata = self._get('/sources')
-        self.assert_('test_source' in ydata)
+        ydata = self.get_json('/sources')
+        self.assertEqual(len(ydata), 1)
+        source = ydata[0]
+        self.assertEqual(source['name'], 'test_source')
 
     def test_source(self):
-        ydata = self._get('/sources/test_source')
-        self.assert_("somekey" in ydata)
-        self.assertEqual(ydata["somekey"], 666)
+        ydata = self.get_json('/sources/test_source')
+        self.assert_("data" in ydata)
+        self.assert_("somekey" in ydata['data'])
+        self.assertEqual(ydata['data']["somekey"], '666')
 
     def test_unknownsource(self):
-        ydata = self._get('/sources/test_source_that_does_not_exist')
-        self.assertEqual(ydata, {})
+        ydata = self.get_json(
+            '/sources/test_source_that_does_not_exist',
+            expect_errors=True)
+        print 'GOT:', ydata
+        self.assertEqual(ydata.status_code, 404)
+        self.assert_(
+            "No source test_source_that_does_not_exist" in
+            ydata.json['error_message']
+        )

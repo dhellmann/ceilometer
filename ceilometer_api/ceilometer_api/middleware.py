@@ -40,7 +40,6 @@ class ParsableErrorMiddleware(object):
         def replacement_start_response(status, headers, exc_info=None):
             """Overrides the default response to make errors parsable.
             """
-            print 'replacement_start_response:', status
             try:
                 status_code = int(status.split(' ')[0])
                 state['status_code'] = status_code
