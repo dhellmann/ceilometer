@@ -17,15 +17,15 @@
 # under the License.
 
 from pecan import make_app
-from ceilometer_api import middleware
-from ceilometer_api import model
-from ceilometer_api import hooks
+from ceilometer.api import hooks
+from ceilometer.api import middleware
+#from ceilometer.api import model
 from ceilometer.service import prepare_service
 
 
 def setup_app(config):
 
-    model.init_model()
+    #model.init_model()
 
     # Initialize the cfg.CONF object
     prepare_service([])

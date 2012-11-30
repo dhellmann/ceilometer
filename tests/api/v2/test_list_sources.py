@@ -18,9 +18,7 @@
 """Test listing users.
 """
 
-import mock
-
-from ceilometer_api.tests.v2 import FunctionalTest
+from ceilometer.tests.api import FunctionalTest
 
 
 class TestListSource(FunctionalTest):
