@@ -23,7 +23,7 @@ import logging
 
 from ceilometer.openstack.common import timeutils
 from ceilometer.storage import impl_test
-from ceilometer_api.tests.v2 import FunctionalTest
+from .base import FunctionalTest
 
 LOG = logging.getLogger(__name__)
 

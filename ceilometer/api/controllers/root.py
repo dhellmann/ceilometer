@@ -15,24 +15,17 @@
 # WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 # License for the specific language governing permissions and limitations
 # under the License.
-try:
-    from setuptools import setup, find_packages
-except ImportError:
-    from ez_setup import use_setuptools
-    use_setuptools()
-    from setuptools import setup, find_packages
 
-setup(
-    name = 'ceilometer_api',
-    version = '0.1',
-    description = '',
-    author = '',
-    author_email = '',
-    install_requires = [
-        "pecan",
-    ],
-    test_suite = 'ceilometer_api',
-    zip_safe = False,
-    include_package_data = True,
-    packages = find_packages(exclude=['ez_setup'])
-)
+from pecan import expose
+
+from . import v2
+
+
+class RootController(object):
+
+    v2 = v2.V2Controller()
+
+    @expose(generic=True, template='index.html')
+    def index(self):
+        # FIXME: Return version information
+        return dict()

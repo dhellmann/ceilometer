@@ -15,7 +15,7 @@
 # WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 # License for the specific language governing permissions and limitations
 # under the License.
-"""Test getting the sum project volume.
+"""Test getting the max resource volume.
 """
 
 import datetime
@@ -24,16 +24,16 @@ from ceilometer import counter
 from ceilometer import meter
 
 from ceilometer.openstack.common import cfg
-from ceilometer_api.tests.v2 import FunctionalTest
+from .base import FunctionalTest
 from ceilometer.tests.db import require_map_reduce
 
 
-class TestSumProjectVolume(FunctionalTest):
+class TestMaxResourceVolume(FunctionalTest):
 
-    PATH = '/projects/project1/meters/volume.size/volume/sum'
+    PATH = '/resources/resource-id/meters/volume.size/volume/max'
 
     def setUp(self):
-        super(TestSumProjectVolume, self).setUp()
+        super(TestMaxResourceVolume, self).setUp()
         require_map_reduce(self.conn)
 
         self.counters = []
@@ -44,7 +44,7 @@ class TestSumProjectVolume(FunctionalTest):
                 5 + i,
                 'user-id',
                 'project1',
-                'resource-id-%s' % i,
+                'resource-id',
                 timestamp=datetime.datetime(2012, 9, 25, 10 + i, 30 + i),
                 resource_metadata={'display_name': 'test-volume',
                                    'tag': 'self.counter',
@@ -59,13 +59,13 @@ class TestSumProjectVolume(FunctionalTest):
 
     def test_no_time_bounds(self):
         data = self.get_json(self.PATH)
-        expected = {'volume': 5 + 6 + 7}
+        expected = {'volume': 7}
         assert data == expected
 
     def test_start_timestamp(self):
         data = self.get_json(self.PATH,
                              start_timestamp='2012-09-25T11:30:00')
-        expected = {'volume': 6 + 7}
+        expected = {'volume': 7}
         assert data == expected
 
     def test_start_timestamp_after(self):

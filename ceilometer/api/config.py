@@ -6,16 +6,17 @@ server = {
 
 # Pecan Application Configurations
 app = {
-    'root': 'ceilometer_api.controllers.root.RootController',
-    'modules': ['ceilometer_api'],
+    'root': 'ceilometer.api.controllers.root.RootController',
+    'modules': ['ceilometer.api'],
     'static_root': '%(confdir)s/public',
-    'template_path': '%(confdir)s/ceilometer_api/templates',
+    'template_path': '%(confdir)s/ceilometer/api/templates',
+    'debug': False,
 }
 
 logging = {
     'loggers': {
         'root': {'level': 'INFO', 'handlers': ['console']},
-        'ceilometer_api': {'level': 'DEBUG', 'handlers': ['console']}
+        'ceilometer.api': {'level': 'DEBUG', 'handlers': ['console']}
     },
     'handlers': {
         'console': {

@@ -21,7 +21,7 @@
 import unittest
 import datetime
 
-from ceilometer_api.controllers import v2 as api
+from ceilometer.api.controllers import v2 as api
 
 
 class TimestampTest(unittest.TestCase):
@@ -40,24 +40,26 @@ class TimestampTest(unittest.TestCase):
     def test_get_query_timestamps_start(self):
         args = {'start_timestamp': '2012-09-20T12:13:14'}
         result = api._get_query_timestamps(args)
-        expected = {'start_timestamp': datetime.datetime(2012, 9, 20, 12, 13, 14),
-                    'end_timestamp': None,
-                    'query_start': datetime.datetime(2012, 9, 20, 12, 13, 14),
-                    'query_end': None,
-                    'search_offset': 0,
-                    }
+        expected = {
+            'start_timestamp': datetime.datetime(2012, 9, 20, 12, 13, 14),
+            'end_timestamp': None,
+            'query_start': datetime.datetime(2012, 9, 20, 12, 13, 14),
+            'query_end': None,
+            'search_offset': 0,
+            }
 
         assert result == expected
 
     def test_get_query_timestamps_end(self):
         args = {'end_timestamp': '2012-09-20T12:13:14'}
         result = api._get_query_timestamps(args)
-        expected = {'end_timestamp': datetime.datetime(2012, 9, 20, 12, 13, 14),
-                    'start_timestamp': None,
-                    'query_end': datetime.datetime(2012, 9, 20, 12, 13, 14),
-                    'query_start': None,
-                    'search_offset': 0,
-                    }
+        expected = {
+            'end_timestamp': datetime.datetime(2012, 9, 20, 12, 13, 14),
+            'start_timestamp': None,
+            'query_end': datetime.datetime(2012, 9, 20, 12, 13, 14),
+            'query_start': None,
+            'search_offset': 0,
+            }
 
         assert result == expected
 
@@ -67,11 +69,12 @@ class TimestampTest(unittest.TestCase):
                 'search_offset': '20',
                 }
         result = api._get_query_timestamps(args)
-        expected = {'query_end': datetime.datetime(2012, 9, 20, 13, 44, 25),
-                    'query_start': datetime.datetime(2012, 9, 20, 11, 53, 14),
-                    'end_timestamp': datetime.datetime(2012, 9, 20, 13, 24, 25),
-                    'start_timestamp': datetime.datetime(2012, 9, 20, 12, 13, 14),
-                    'search_offset': 20,
-                    }
+        expected = {
+            'query_end': datetime.datetime(2012, 9, 20, 13, 44, 25),
+            'query_start': datetime.datetime(2012, 9, 20, 11, 53, 14),
+            'end_timestamp': datetime.datetime(2012, 9, 20, 13, 24, 25),
+            'start_timestamp': datetime.datetime(2012, 9, 20, 12, 13, 14),
+            'search_offset': 20,
+            }
 
         assert result == expected

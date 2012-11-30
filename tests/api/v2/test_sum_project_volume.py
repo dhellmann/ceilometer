@@ -2,7 +2,7 @@
 #
 # Copyright © 2012 New Dream Network, LLC (DreamHost)
 #
-# Author: Doug Hellmann <doug.hellmann@dreamhost.com>
+# Author: Steven Berler <steven.berler@dreamhost.com>
 #
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License. You may obtain
@@ -15,7 +15,7 @@
 # WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 # License for the specific language governing permissions and limitations
 # under the License.
-"""Test getting the total resource volume.
+"""Test getting the sum project volume.
 """
 
 import datetime
@@ -24,16 +24,16 @@ from ceilometer import counter
 from ceilometer import meter
 
 from ceilometer.openstack.common import cfg
-from ceilometer_api.tests.v2 import FunctionalTest
+from .base import FunctionalTest
 from ceilometer.tests.db import require_map_reduce
 
 
-class TestSumResourceVolume(FunctionalTest):
+class TestSumProjectVolume(FunctionalTest):
 
-    PATH = '/resources/resource-id/meters/volume.size/volume/sum'
+    PATH = '/projects/project1/meters/volume.size/volume/sum'
 
     def setUp(self):
-        super(TestSumResourceVolume, self).setUp()
+        super(TestSumProjectVolume, self).setUp()
         require_map_reduce(self.conn)
 
         self.counters = []
@@ -44,7 +44,7 @@ class TestSumResourceVolume(FunctionalTest):
                 5 + i,
                 'user-id',
                 'project1',
-                'resource-id',
+                'resource-id-%s' % i,
                 timestamp=datetime.datetime(2012, 9, 25, 10 + i, 30 + i),
                 resource_metadata={'display_name': 'test-volume',
                                    'tag': 'self.counter',
