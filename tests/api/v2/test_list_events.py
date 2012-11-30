@@ -25,7 +25,7 @@ from ceilometer import counter
 from ceilometer import meter
 from ceilometer.openstack.common import cfg
 
-from ceilometer_api.tests.v2 import FunctionalTest
+from ceilometer.tests.api import FunctionalTest
 
 LOG = logging.getLogger(__name__)
 

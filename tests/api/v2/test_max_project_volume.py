@@ -15,7 +15,7 @@
 # WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 # License for the specific language governing permissions and limitations
 # under the License.
-"""Test getting the sum project volume.
+"""Test getting the max resource volume.
 """
 
 import datetime
@@ -24,16 +24,17 @@ from ceilometer import counter
 from ceilometer import meter
 
 from ceilometer.openstack.common import cfg
-from ceilometer_api.tests.v2 import FunctionalTest
 from ceilometer.tests.db import require_map_reduce
 
+from ceilometer.tests.api import FunctionalTest
 
-class TestSumProjectVolume(FunctionalTest):
 
-    PATH = '/projects/project1/meters/volume.size/volume/sum'
+class TestMaxProjectVolume(FunctionalTest):
+
+    PATH = '/projects/project1/meters/volume.size/volume/max'
 
     def setUp(self):
-        super(TestSumProjectVolume, self).setUp()
+        super(TestMaxProjectVolume, self).setUp()
         require_map_reduce(self.conn)
 
         self.counters = []
@@ -59,36 +60,36 @@ class TestSumProjectVolume(FunctionalTest):
 
     def test_no_time_bounds(self):
         data = self.get_json(self.PATH)
-        expected = {'volume': 5 + 6 + 7}
-        assert data == expected
+        expected = {'volume': 7}
+        self.assertEqual(data, expected)
 
     def test_start_timestamp(self):
         data = self.get_json(self.PATH,
                              start_timestamp='2012-09-25T11:30:00')
-        expected = {'volume': 6 + 7}
-        assert data == expected
+        expected = {'volume': 7}
+        self.assertEqual(data, expected)
 
     def test_start_timestamp_after(self):
         data = self.get_json(self.PATH,
                              start_timestamp='2012-09-25T12:34:00')
         expected = {'volume': None}
-        assert data == expected
+        self.assertEqual(data, expected)
 
     def test_end_timestamp(self):
         data = self.get_json(self.PATH,
                              end_timestamp='2012-09-25T11:30:00')
         expected = {'volume': 5}
-        assert data == expected
+        self.assertEqual(data, expected)
 
     def test_end_timestamp_before(self):
         data = self.get_json(self.PATH,
                              end_timestamp='2012-09-25T09:54:00')
         expected = {'volume': None}
-        assert data == expected
+        self.assertEqual(data, expected)
 
     def test_start_end_timestamp(self):
         data = self.get_json(self.PATH,
                              start_timestamp='2012-09-25T11:30:00',
                              end_timestamp='2012-09-25T11:32:00')
         expected = {'volume': 6}
-        assert data == expected
+        self.assertEqual(data, expected)

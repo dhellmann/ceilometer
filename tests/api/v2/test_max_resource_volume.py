@@ -24,7 +24,7 @@ from ceilometer import counter
 from ceilometer import meter
 
 from ceilometer.openstack.common import cfg
-from ceilometer_api.tests.v2 import FunctionalTest
+from ceilometer.tests.api import FunctionalTest
 from ceilometer.tests.db import require_map_reduce
 
 
