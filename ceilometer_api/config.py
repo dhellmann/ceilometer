@@ -10,11 +10,6 @@ app = {
     'modules': ['ceilometer_api'],
     'static_root': '%(confdir)s/public',
     'template_path': '%(confdir)s/ceilometer_api/templates',
-    'debug': True,
-    'errors': {
-        404: '/error/404',
-        '__force_dict__': True
-    }
 }
 
 logging = {

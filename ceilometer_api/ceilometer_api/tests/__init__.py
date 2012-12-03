@@ -42,11 +42,6 @@ class FunctionalTest(TestCase):
                 'modules': ['ceilometer_api'],
                 'static_root': '%s/public' % root_dir,
                 'template_path': '%s/ceilometer_api/templates' % root_dir,
-                'debug': True,
-                'errors': {
-                    404: '/error/404',
-                    '__force_dict__': True
-                    },
                 },
 
             'logging': {
