@@ -16,7 +16,7 @@ app = {
 logging = {
     'loggers': {
         'root': {'level': 'INFO', 'handlers': ['console']},
-        'ceilometer.api': {'level': 'DEBUG', 'handlers': ['console']}
+        'ceilometer': {'level': 'DEBUG', 'handlers': ['console']}
     },
     'handlers': {
         'console': {

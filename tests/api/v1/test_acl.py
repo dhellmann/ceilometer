@@ -18,8 +18,7 @@
 """Test ACL."""
 
 from ceilometer.tests import api as tests_api
-from ceilometer.api import acl
-from ceilometer.openstack.common import cfg
+from ceilometer.api.v1 import acl
 
 
 class TestAPIACL(tests_api.TestBase):
