@@ -23,12 +23,17 @@ from ceilometer.api import middleware
 from ceilometer.service import prepare_service
 
 
-def setup_app(config):
+def setup_app(config, extra_hooks=[]):
 
     #model.init_model()
 
     # Initialize the cfg.CONF object
     prepare_service([])
+
+    # FIXME: Replace DBHook with a hooks.TransactionHook
+    app_hooks = [hooks.ConfigHook(),
+                 hooks.DBHook()]
+    app_hooks.extend(extra_hooks)
 
     return make_app(
         config.app.root,
@@ -37,7 +42,6 @@ def setup_app(config):
         logging=getattr(config, 'logging', {}),
         debug=getattr(config.app, 'debug', False),
         force_canonical=getattr(config.app, 'force_canonical', True),
-        # FIXME: Replace DBHook with a hooks.TransactionHook
-        hooks=[hooks.ConfigHook(), hooks.DBHook()],
+        hooks=app_hooks,
         wrap_app=middleware.ParsableErrorMiddleware,
     )
