@@ -347,12 +347,33 @@ class MeterController(RestController):
                         )
 
 
+class Meter(Base):
+    name = text
+    type = text
+    resource_id = text
+    project_id = text
+    user_id = text
+
+
 class MetersController(RestController):
     """Works on meters."""
 
     @pecan.expose()
     def _lookup(self, meter_id, *remainder):
         return MeterController(meter_id), remainder
+
+    @wsme.pecan.wsexpose([Meter])
+    def get_all(self):
+        user_id = request.context.get('user_id')
+        project_id = request.context.get('project_id')
+        resource_id = request.context.get('resource_id')
+        source_id = request.context.get('source_id')
+        return [Meter(**m)
+                for m in request.storage_conn.get_meters(user=user_id,
+                                                         project=project_id,
+                                                         resource=resource_id,
+                                                         source=source_id,
+                                                         )]
 
 
 class ResourceController(RestController):
@@ -534,3 +555,4 @@ class V2Controller(object):
     resources = ResourcesController()
     sources = SourcesController()
     users = UsersController()
+    meters = MetersController()
