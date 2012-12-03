@@ -17,6 +17,7 @@
 # under the License.
 
 from pecan import make_app
+from ceilometer_api import middleware
 from ceilometer_api import model
 from ceilometer_api import hooks
 from ceilometer.service import prepare_service
@@ -38,4 +39,5 @@ def setup_app(config):
         force_canonical=getattr(config.app, 'force_canonical', True),
         # FIXME: Replace DBHook with a hooks.TransactionHook
         hooks=[hooks.ConfigHook(), hooks.DBHook()],
+        wrap_app=middleware.ParsableErrorMiddleware,
     )
