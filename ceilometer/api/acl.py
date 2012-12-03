@@ -18,7 +18,10 @@
 """Set up the ACL to acces the API server."""
 
 from ceilometer import policy
+
 from pecan import hooks
+
+from webob import exc
 
 import keystoneclient.middleware.auth_token as auth_token
 
@@ -49,4 +52,4 @@ class AdminAuthHook(hooks.PecanHook):
         if not policy.check_is_admin(headers.get('X-Roles', "").split(","),
                                      headers.get('X-Tenant-Id'),
                                      headers.get('X-Tenant-Name')):
-            return "Access denied", 401
+            raise exc.HTTPUnauthorized()

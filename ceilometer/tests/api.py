@@ -126,10 +126,14 @@ class FunctionalTest(unittest.TestCase):
                 },
             }
 
-        self.app = load_test_app(self.config)
         self.mox = mox.Mox()
         self.stubs = stubout.StubOutForTesting()
+
+        self.app = self._make_app()
         self._stubout_sources()
+
+    def _make_app(self):
+        return load_test_app(self.config)
 
     def _stubout_sources(self):
         """Source data is usually read from a file, but
@@ -148,11 +152,12 @@ class FunctionalTest(unittest.TestCase):
         self.mox.VerifyAll()
         set_config({}, overwrite=True)
 
-    def get_json(self, path, expect_errors=False, **params):
+    def get_json(self, path, expect_errors=False, headers=None, **params):
         full_path = self.PATH_PREFIX + path
         print 'GET: %s %r' % (full_path, params)
         response = self.app.get(full_path,
                                 params=params,
+                                headers=headers,
                                 expect_errors=expect_errors)
         if not expect_errors:
             response = response.json
