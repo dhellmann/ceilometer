@@ -53,30 +53,15 @@ Table of contents
    webapi/index
    contributing/index
    releasenotes/index
-   api/index
    glossary
 
-.. - installation
-..   - devstack
-..   - take content from "initial setup"
-.. - configuration
-..   - talk about copying nova config file
-.. - running the services
-..   - agent on compute node
-..   - collector on controller (non-compute) node
-.. - contributing
-..   - joining the project (take this from another set of docs?)
-..   - reporting bugs
-..   - running tests
-..   - submitting patches for review
-.. - writing plugins
-..   - general plugin-based architecture information
-..     - reference to setuptools entry points docs
-..   - pollsters
-..   - notifications
-..   - database engine
+.. Silence the warning about the api modules not being included
+.. in any table of contents, without actually showing them in
+.. the table of contents.
+.. toctree::
+   :hidden:
 
-.. update index
+   api/autoindex
 
 Indices and tables
 ==================
