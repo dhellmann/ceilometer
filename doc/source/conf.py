@@ -51,6 +51,13 @@ master_doc = 'index'
 project = u'Ceilometer'
 copyright = u'2012, OpenStack, LLC'
 
+rst_prolog = """
+.. note::
+
+   See http://docs.openstack.org/developer/ceilometer/ for updated
+   versions of this documentation.
+"""
+
 # The version info for the project you're documenting, acts as replacement for
 # |version| and |release|, also used in various other places throughout the
 # built documents.
