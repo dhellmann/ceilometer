@@ -141,12 +141,20 @@ def _get_query_timestamps(args={}):
 
 # FIXME(dhellmann): Change APIs that use this to return float?
 class MeterVolume(Base):
+    """Response type for queries that summarize meter data.
+    """
+
     volume = wsattr(float, mandatory=False)
+    "The summarized meter volume."
 
     def __init__(self, volume, **kw):
         if volume is not None:
             volume = float(volume)
         super(MeterVolume, self).__init__(volume=volume, **kw)
+
+    @staticmethod
+    def sample():
+        return MeterVolume(1.2)
 
 
 class MeterVolumeController(object):
@@ -236,18 +244,39 @@ class MeterVolumeController(object):
 
 
 class Event(Base):
+    """A single recorded sample of data about a meter and resource.
+    """
+
     source = text
+    "The name of the source for identities. See :type:`Source`."
+
     counter_name = text
+    "The name of the thing being measured. See :ref:`measurements`."
+
     counter_type = text
+    "The style of measurement taken. See :ref:`measurements`."
+
     counter_volume = float
+    "The recorded measurement."
+
     user_id = text
+    "The identity of the user consuming the resource, if known."
+
     project_id = text
+    "The identity of the project that owns the resource."
+
     resource_id = text
+    "The id of the thing against which the measurement was taken."
+
     timestamp = datetime.datetime
+    "The date and time when the measurement was taken."
+
     # FIXME(dhellmann): Need to add the metadata back as
     # a flat {text: text} mapping.
     #resource_metadata = ?
+
     message_id = text
+    "A unique identifier for the measurement."
 
     def __init__(self, counter_volume=None, **kwds):
         if counter_volume is not None:
@@ -255,11 +284,52 @@ class Event(Base):
         super(Event, self).__init__(counter_volume=counter_volume,
                                     **kwds)
 
+    @staticmethod
+    def sample():
+        return Event(source='openstack',
+                     counter_name='vcpus',
+                     counter_type='gauge',
+                     counter_volume=2.0,
+                     user_id='29dc1ab009814c0dbb172a61710566d2',
+                     project_id='a68b6a458fa844deb00fee665e647a83',
+                     resource_id='297c82316e8445b7b8f15ae87ebcebdd',
+                     timestamp=datetime.datetime(2012, 4, 16, 8, 0, 0),
+                     message_id='dd9a0612712e4fe192e18a33eff4e302',
+                     )
+
 
 class Duration(Base):
+    """Response type for the duration query for a meter.
+    """
+
     start_timestamp = datetime.datetime
+    """
+    The earliest time stamp for which data is known. If
+    ``search_offset`` is used, this may be the start timestamp from
+    the original query if there is an earlier event that falls within
+    the offset.
+    """
+
     end_timestamp = datetime.datetime
+    """
+    The latest time stamp for which data is known. If
+    ``search_offset`` is used, this may be the end timestamp from the
+    original query if there is a later event that falls within the
+    offset.
+    """
+
     duration = float
+    """The difference between end_timestamp and start_timestamp in
+    seconds.
+    """
+
+    @staticmethod
+    def sample():
+        ""
+        return Duration(start_timestamp=datetime.datetime(2012, 12, 5, 12, 10),
+                        end_timestamp=datetime.datetime(2012, 12, 5, 13, 10),
+                        duration=60 * 60,
+                        )
 
 
 class MeterController(RestController):
@@ -350,11 +420,34 @@ class MeterController(RestController):
 
 
 class Meter(Base):
+    """Describes the measurement being taken.
+
+    See :ref:`measurements` for a complete list.
+    """
+
     name = text
+    "The unique name of the meter."
+
     type = text
+    "One of cumulative, guage, or delta."
+
     resource_id = text
+    "UUID of the resource for which the meter is collected."
+
     project_id = text
+    "UUID of the project for which the meter is collected."
+
     user_id = text
+    "UUID of the user for which the meter is collected."
+
+    @staticmethod
+    def sample():
+        return Meter(name='instance',
+                     type='gauge',
+                     user_id='29dc1ab009814c0dbb172a61710566d2',
+                     project_id='a68b6a458fa844deb00fee665e647a83',
+                     resource_id='297c82316e8445b7b8f15ae87ebcebdd',
+                     )
 
 
 class MetersController(RestController):
@@ -389,17 +482,40 @@ class ResourceController(RestController):
 
 
 class MeterDescription(Base):
+    """Describes a measurement being taken.
+
+    See :ref:`measurements` for a complete list.
+    """
+
     counter_name = text
+    "The name of the measurement."
+
     counter_type = text
+    "One of cumulative, gauge, or delta."
 
 
 class Resource(Base):
+    """An object for which measurements can be taken.
+
+    For example, instances, networks, images, etc.
+    """
+
     resource_id = text
+    "UUID of the resource"
+
     project_id = text
+    "owner of the resource"
+
     user_id = text
+    "user triggering resource use"
+
     timestamp = datetime.datetime
+    "the last time a measurement for this resource was taken"
+
     #metadata = ?
+
     meter = wsattr([MeterDescription])
+    "a list of the names of meters collecting data for this resource"
 
     def __init__(self, meter=[], **kwds):
         meter = [MeterDescription(**m) for m in meter]
@@ -483,8 +599,26 @@ class UsersController(RestController):
 
 
 class Source(Base):
+    """Definition of an identity source.
+
+    A source defines the scope of the project and user identifiers in
+    a meter.  Different sources can be registered through a
+    configuration file, and their details retrieved through the API to
+    map resource usage to billable customers.
+    """
+
     name = text
-    data = {text: text}
+    """
+    The unique name of the source. This must be the same in the source
+    configuration file and in the metering event data.
+    """
+
+    data = wsattr({text: text})
+    """
+    Arbitrary key/value pairs of data from the source configuration
+    file. This can include any data useful for integrators working on
+    a given deployment.
+    """
 
     @staticmethod
     def sample():
