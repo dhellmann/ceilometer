@@ -64,7 +64,7 @@ rst_prolog = """
 #
 # The short X.Y version.
 #version = '0.0'
-version = os.popen('cd ../..; python setup.py --version', 'r').read().strip()
+version = '0.1'  # os.popen('cd ../..; python setup.py --version', 'r').read().strip()
 # The full version, including alpha/beta/rc tags.
 release = version
 
