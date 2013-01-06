@@ -3,6 +3,7 @@
 # Copyright © 2012 New Dream Network, LLC (DreamHost)
 #
 # Author: Doug Hellmann <doug.hellmann@dreamhost.com>
+#         Angus Salkeld <asalkeld@redhat.com>
 #
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License. You may obtain
@@ -18,65 +19,17 @@
 """Version 2 of the API.
 """
 
-# [ ] / -- information about this version of the API
+# [GET ] / -- information about this version of the API
 #
-# [ ] /extensions -- list of available extensions
-# [ ] /extensions/<extension> -- details about a specific extension
+# [GET   ] /resources -- list the resources
+# [GET   ] /resources/<resource> -- information about the resource
+# [GET   ] /meters -- list the meters
+# [POST  ] /meters -- insert a new sample (and meter/resource if needed)
+# [GET   ] /meters/<meter> -- list the samples for this meter
+# [PUT   ] /meters/<meter> -- update the meter (not the samples)
+# [DELETE] /meters/<meter> -- delete the meter and samples
 #
-# [ ] /sources -- list of known sources (where do we get this?)
-# [ ] /sources/components -- list of components which provide metering
-#                            data (where do we get this)?
-#
-# [x] /projects/<project>/resources -- list of resource ids
-# [x] /resources -- list of resource ids
-# [x] /sources/<source>/resources -- list of resource ids
-# [x] /users/<user>/resources -- list of resource ids
-#
-# [x] /users -- list of user ids
-# [x] /sources/<source>/users -- list of user ids
-#
-# [x] /projects -- list of project ids
-# [x] /sources/<source>/projects -- list of project ids
-#
-# [ ] /resources/<resource> -- metadata
-#
-# [ ] /projects/<project>/meters -- list of meters reporting for parent obj
-# [ ] /resources/<resource>/meters -- list of meters reporting for parent obj
-# [ ] /sources/<source>/meters -- list of meters reporting for parent obj
-# [ ] /users/<user>/meters -- list of meters reporting for parent obj
-#
-# [x] /projects/<project>/meters/<meter> -- events
-# [x] /resources/<resource>/meters/<meter> -- events
-# [x] /sources/<source>/meters/<meter> -- events
-# [x] /users/<user>/meters/<meter> -- events
-#
-# [ ] /projects/<project>/meters/<meter>/duration -- total time for selected
-#                                                    meter
-# [x] /resources/<resource>/meters/<meter>/duration -- total time for selected
-#                                                      meter
-# [ ] /sources/<source>/meters/<meter>/duration -- total time for selected
-#                                                  meter
-# [ ] /users/<user>/meters/<meter>/duration -- total time for selected meter
-#
-# [ ] /projects/<project>/meters/<meter>/volume -- total or max volume for
-#                                                  selected meter
-# [x] /projects/<project>/meters/<meter>/volume/max -- max volume for
-#                                                      selected meter
-# [x] /projects/<project>/meters/<meter>/volume/sum -- total volume for
-#                                                      selected meter
-# [ ] /resources/<resource>/meters/<meter>/volume -- total or max volume for
-#                                                    selected meter
-# [x] /resources/<resource>/meters/<meter>/volume/max -- max volume for
-#                                                        selected meter
-# [x] /resources/<resource>/meters/<meter>/volume/sum -- total volume for
-#                                                        selected meter
-# [ ] /sources/<source>/meters/<meter>/volume -- total or max volume for
-#                                                selected meter
-# [ ] /users/<user>/meters/<meter>/volume -- total or max volume for selected
-#                                            meter
-
 import datetime
-import os
 
 import pecan
 from pecan import request
@@ -84,15 +37,23 @@ from pecan.rest import RestController
 
 import wsme
 import wsme.pecan
-from wsme.types import Base, text, wsattr
+from wsme.types import Base, text, wsattr, Enum
 
-from ceilometer.openstack.common import jsonutils
 from ceilometer.openstack.common import log as logging
 from ceilometer.openstack.common import timeutils
 from ceilometer import storage
 
 
 LOG = logging.getLogger(__name__)
+
+
+operation_kind = Enum(str, 'lt','le','eq','ne','ge','gt')
+
+
+class Query(Base):
+    field = text
+    op = operation_kind
+    value = text
 
 
 def _get_query_timestamps(args={}):
@@ -379,6 +340,7 @@ class MetersController(RestController):
 
     @wsme.pecan.wsexpose([Meter])
     def get_all(self):
+        print 'in get_all meters'
         user_id = request.context.get('user_id')
         project_id = request.context.get('project_id')
         resource_id = request.context.get('resource_id')
@@ -391,19 +353,14 @@ class MetersController(RestController):
                                                          )]
 
 
-class ResourceController(RestController):
-    """Manages operations on a single resource.
-    """
-
-    def __init__(self, resource_id):
-        request.context['resource_id'] = resource_id
-
-    meters = MetersController()
-
-
-class MeterDescription(Base):
-    counter_name = text
-    counter_type = text
+class ResourceSummary(Base):
+    resource_id = text
+    project_id = text
+    user_id = text
+    def __init__(self, **kwds):
+        keys = ('resource_id', 'project_id', 'user_id')
+        needed = dict((k, kwds.get(k)) for k in keys)
+        super(ResourceSummary, self).__init__( **needed)
 
 
 class Resource(Base):
@@ -412,14 +369,25 @@ class Resource(Base):
     user_id = text
     timestamp = datetime.datetime
     metadata = {text: text}
-    meter = wsattr([MeterDescription])
 
-    def __init__(self, meter=[], metadata={}, **kwds):
-        meter = [MeterDescription(**m) for m in meter]
+    def __init__(self, metadata={}, **kwds):
         metadata = _flatten_metadata(metadata)
-        super(Resource, self).__init__(meter=meter,
-                                       metadata=metadata,
-                                       **kwds)
+        super(Resource, self).__init__(metadata=metadata, **kwds)
+
+
+class ResourceController(RestController):
+    """Manages operations on a single resource.
+    """
+
+    def __init__(self, resource_id):
+        request.context['resource_id'] = resource_id
+
+    @wsme.pecan.wsexpose([Resource])
+    def get_all(self, start_timestamp=None, end_timestamp=None):
+            r = request.storage_conn.get_resources(
+                source=request.context.get('resource_id'),
+                )[0]
+            return Resource(**r)
 
 
 class ResourcesController(RestController):
@@ -429,152 +397,22 @@ class ResourcesController(RestController):
     def _lookup(self, resource_id, *remainder):
         return ResourceController(resource_id), remainder
 
-    @wsme.pecan.wsexpose([Resource])
-    def get_all(self, start_timestamp=None, end_timestamp=None):
-        if start_timestamp:
-            start_timestamp = timeutils.parse_isotime(start_timestamp)
-        if end_timestamp:
-            end_timestamp = timeutils.parse_isotime(end_timestamp)
+    @wsme.pecan.wsexpose([ResourceSummary], [Query])
+    def get_all(self, q=[]):
+        print 'Query is %s' % (q)
 
         resources = [
-            Resource(**r)
+            ResourceSummary(**r)
             for r in request.storage_conn.get_resources(
                 source=request.context.get('source_id'),
                 user=request.context.get('user_id'),
                 project=request.context.get('project_id'),
-                start_timestamp=start_timestamp,
-                end_timestamp=end_timestamp,
                 )]
         return resources
-
-
-class ProjectController(RestController):
-    """Works on resources."""
-
-    def __init__(self, project_id):
-        request.context['project_id'] = project_id
-
-    meters = MetersController()
-    resources = ResourcesController()
-
-
-class ProjectsController(RestController):
-    """Works on projects."""
-
-    @pecan.expose()
-    def _lookup(self, project_id, *remainder):
-        return ProjectController(project_id), remainder
-
-    @wsme.pecan.wsexpose([text])
-    def get_all(self):
-        source_id = request.context.get('source_id')
-        projects = list(request.storage_conn.get_projects(source=source_id))
-        return projects
-
-    meters = MetersController()
-
-
-class UserController(RestController):
-    """Works on reusers."""
-
-    def __init__(self, user_id):
-        request.context['user_id'] = user_id
-
-    meters = MetersController()
-    resources = ResourcesController()
-
-
-class UsersController(RestController):
-    """Works on users."""
-
-    @pecan.expose()
-    def _lookup(self, user_id, *remainder):
-        return UserController(user_id), remainder
-
-    @wsme.pecan.wsexpose([text])
-    def get_all(self):
-        source_id = request.context.get('source_id')
-        users = list(request.storage_conn.get_users(source=source_id))
-        return users
-
-
-class Source(Base):
-    name = text
-    data = {text: text}
-
-    @staticmethod
-    def sample():
-        return Source(name='openstack',
-                      data={'key': 'value'})
-
-
-class SourceController(RestController):
-    """Works on resources."""
-
-    def __init__(self, source_id, data):
-        request.context['source_id'] = source_id
-        self._id = source_id
-        self._data = data
-
-    @wsme.pecan.wsexpose(Source)
-    def get(self):
-        response = Source(name=self._id, data=self._data)
-        return response
-
-    meters = MetersController()
-    resources = ResourcesController()
-    projects = ProjectsController()
-    users = UsersController()
-
-
-class SourcesController(RestController):
-    """Works on sources."""
-
-    def __init__(self):
-        self._sources = None
-
-    @property
-    def sources(self):
-        # FIXME(dhellmann): Add a configuration option for the filename.
-        #
-        # FIXME(dhellmann): We only want to load the file once in a process,
-        # but we want to be able to mock the loading out in separate tests.
-        #
-        if not self._sources:
-            self._sources = self._load_sources(os.path.abspath("sources.json"))
-        return self._sources
-
-    @staticmethod
-    def _load_sources(filename):
-        try:
-            with open(filename, "r") as f:
-                sources = jsonutils.load(f)
-        except IOError as err:
-            LOG.warning('Could not load data source definitions from %s: %s' %
-                        (filename, err))
-            sources = {}
-        return sources
-
-    @pecan.expose()
-    def _lookup(self, source_id, *remainder):
-        try:
-            data = self.sources[source_id]
-        except KeyError:
-            # Unknown source
-            pecan.abort(404, detail='No source %s' % source_id)
-        return SourceController(source_id, data), remainder
-
-    @wsme.pecan.wsexpose([Source])
-    def get_all(self):
-        return [Source(name=key, data=value)
-                for key, value in self.sources.iteritems()]
 
 
 class V2Controller(object):
     """Version 2 API controller root."""
 
-    projects = ProjectsController()
     resources = ResourcesController()
-    sources = SourcesController()
-    users = UsersController()
     meters = MetersController()
