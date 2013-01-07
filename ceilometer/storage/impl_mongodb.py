@@ -175,6 +175,30 @@ class Connection(base.Connection):
     }
     """)
 
+    MAP_STATS = bson.code.Code("""
+    function () {
+        emit('statistics', { min : this.counter_volume,
+                                    max : this.counter_volume,
+                                    qty : this.counter_volume,
+                                    count : 1 } )
+    }
+    """)
+
+    REDUCE_STATS = bson.code.Code("""
+    function (key, values) {
+        var res = values[0];
+        for ( var i=1; i<values.length; i++ ) {
+            if ( values[i].min < res.min )
+               res.min = values[i].min;
+            if ( values[i].max > res.max )
+               res.max = values[i].max;
+            res.count += values[i].count;
+            res.qty += values[i].qty;
+        }
+        return res;
+    }
+    """)
+
     def __init__(self, conf):
         opts = self._parse_connection_url(conf.database_connection)
         LOG.info('connecting to MongoDB on %s:%s', opts['host'], opts['port'])
@@ -307,7 +331,7 @@ class Connection(base.Connection):
 
     def get_resources(self, user=None, project=None, source=None,
                       start_timestamp=None, end_timestamp=None,
-                      metaquery={}):
+                      metaquery={}, resource=None):
         """Return an iterable of dictionaries containing resource information.
 
         { 'resource_id': UUID of the resource,
@@ -332,6 +356,8 @@ class Connection(base.Connection):
             q['project_id'] = project
         if source is not None:
             q['source'] = source
+        if resource is not None:
+            q['_id'] = resource
         q.update(metaquery)
 
         # FIXME(dhellmann): This may not perform very well,
@@ -408,6 +434,40 @@ class Connection(base.Connection):
             # detail that should not leak outside of the driver.
             del e['_id']
             yield e
+
+
+    def get_meter_statistics(self, event_filter):
+        """Return an iterable of dictionaries containing meter statistics.
+        described by the query parameters.
+
+        The filter must have a meter value set.
+
+        { 'min':
+          'max':
+          'avg':
+          'sum':
+          'count':
+          'duration':
+          }
+
+        """
+        q = make_query_from_filter(event_filter)
+        results = self.db.meter.map_reduce(self.MAP_STATS,
+                                           self.REDUCE_STATS,
+                                           {'inline': 1},
+                                           query=q,
+                                           )
+        r = results['results'][0]['value']
+        count = 1
+        if r['count'] > 0:
+            count = r['count']
+        return {'min': r['min'],
+                'sum': r['qty'],
+                'count': int(r['count']),
+                'avg': r['qty'] / count,
+                'max': r['max'],
+                'duration': 0}
+
 
     def get_volume_sum(self, event_filter):
         """Return the sum of the volume field for the events

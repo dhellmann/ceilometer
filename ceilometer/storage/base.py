@@ -83,7 +83,7 @@ class Connection(object):
     @abc.abstractmethod
     def get_resources(self, user=None, project=None, source=None,
                       start_timestamp=None, end_timestamp=None,
-                      metaquery={}):
+                      metaquery={}, resource=None):
         """Return an iterable of dictionaries containing resource information.
 
         { 'resource_id': UUID of the resource,
@@ -157,4 +157,24 @@ class Connection(object):
         using the event_filter to limit the events seen.
 
         ( datetime.datetime(), datetime.datetime() )
+        """
+
+    @abc.abstractmethod
+    def get_meter_statistics(self, event_filter):
+        """Return an iterable of dictionaries containing meter statistics.
+        described by the query parameters.
+
+        The filter must have a meter value set.
+
+        { 'resource_id': UUID of the resource,
+          'project_id': UUID of project owning the resource,
+          'user_id': UUID of user owning the resource,
+          'min':
+          'max':
+          'avg':
+          'sum':
+          'count':
+          'duration':
+          }
+
         """

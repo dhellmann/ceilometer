@@ -23,6 +23,7 @@
 import argparse
 import datetime
 import logging
+import random
 import sys
 
 from ceilometer.collector import meter
@@ -115,7 +116,7 @@ def main():
     while timestamp <= end:
         c = counter.Counter(name=args.counter,
                             type=args.type,
-                            volume=args.volume,
+                            volume=random.randint(1, 100),
                             user_id=args.user,
                             project_id=args.project,
                             resource_id=args.resource,

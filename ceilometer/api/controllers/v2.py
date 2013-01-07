@@ -37,7 +37,7 @@ from pecan.rest import RestController
 
 import wsme
 import wsme.pecan
-from wsme.types import Base, text, wsattr, Enum
+from wsme.types import Base, text, Enum
 
 from ceilometer.openstack.common import log as logging
 from ceilometer.openstack.common import timeutils
@@ -54,6 +54,33 @@ class Query(Base):
     field = text
     op = operation_kind
     value = text
+
+
+def _query_to_kwargs(query):
+    translatation = {'user_id': 'user',
+                     'project_id': 'project',
+                     'resource_id': 'resource',
+                     'source': 'source'}
+    kwargs = {}
+    stamp = {}
+    metaquery = {}
+    for i in query:
+        if i.field in translatation:
+            kwargs[translatation[i.field]] = i.value
+        elif i.field == 'timestamp' and i.op in ('lt','le'):
+            stamp['end_timestamp'] = i.value
+        elif i.field == 'timestamp' and i.op in ('gt','ge'):
+            stamp['start_timestamp'] = i.value
+        elif i.field == 'search_offset':
+            stamp['search_offset'] = i.value
+        elif i.field.startswith('metadata.'):
+            metaquery[i.field] = i.value
+
+    if len(metaquery) > 0:
+        kwargs['metaquery'] = metaquery
+    if len(stamp) > 0:
+        kwargs.update(_get_query_timestamps(stamp))
+    return kwargs
 
 
 def _get_query_timestamps(args={}):
@@ -100,102 +127,6 @@ def _get_query_timestamps(args={}):
             }
 
 
-# FIXME(dhellmann): Change APIs that use this to return float?
-class MeterVolume(Base):
-    volume = wsattr(float, mandatory=False)
-
-    def __init__(self, volume, **kw):
-        if volume is not None:
-            volume = float(volume)
-        super(MeterVolume, self).__init__(volume=volume, **kw)
-
-
-class MeterVolumeController(object):
-
-    @wsme.pecan.wsexpose(MeterVolume)
-    def max(self):
-        """Find the maximum volume for the matching meter events.
-        """
-        q_ts = _get_query_timestamps(request.params)
-
-        try:
-            meter = request.context['meter_id']
-        except KeyError:
-            raise ValueError('No meter specified')
-
-        resource = request.context.get('resource_id')
-        project = request.context.get('project_id')
-
-        # Query the database for the max volume
-        f = storage.EventFilter(meter=meter,
-                                resource=resource,
-                                start=q_ts['query_start'],
-                                end=q_ts['query_end'],
-                                project=project,
-                                )
-
-        # TODO(sberler): do we want to return an error if the resource
-        # does not exist?
-        results = list(request.storage_conn.get_volume_max(f))
-
-        value = None
-        if results:
-            if resource:
-                # If the caller specified a resource there should only
-                # be one result.
-                value = results[0].get('value')
-            else:
-                # FIXME(sberler): Currently get_volume_max is really
-                # always grouping by resource_id.  We should add a new
-                # function in the storage driver that does not do this
-                # grouping (and potentially rename the existing one to
-                # get_volume_max_by_resource())
-                value = max(result.get('value') for result in results)
-
-        return MeterVolume(volume=value)
-
-    @wsme.pecan.wsexpose(MeterVolume)
-    def sum(self):
-        """Compute the total volume for the matching meter events.
-        """
-        q_ts = _get_query_timestamps(request.params)
-
-        try:
-            meter = request.context['meter_id']
-        except KeyError:
-            raise ValueError('No meter specified')
-
-        resource = request.context.get('resource_id')
-        project = request.context.get('project_id')
-
-        f = storage.EventFilter(meter=meter,
-                                project=project,
-                                start=q_ts['query_start'],
-                                end=q_ts['query_end'],
-                                resource=resource,
-                                )
-
-        # TODO(sberler): do we want to return an error if the resource
-        # does not exist?
-        results = list(request.storage_conn.get_volume_sum(f))
-
-        value = None
-        if results:
-            if resource:
-                # If the caller specified a resource there should only
-                # be one result.
-                value = results[0].get('value')
-            else:
-                # FIXME(sberler): Currently get_volume_max is really
-                # always grouping by resource_id.  We should add a new
-                # function in the storage driver that does not do this
-                # grouping (and potentially rename the existing one to
-                # get_volume_max_by_resource())
-                value = sum(result.get('value') for result in results)
-
-        return MeterVolume(volume=value)
-
-
 def _flatten_metadata(metadata):
     """Return flattened resource metadata without nested structures
     and with all values converted to unicode strings.
@@ -205,7 +136,7 @@ def _flatten_metadata(metadata):
                 if type(v) not in set([list, dict, set]))
 
 
-class Event(Base):
+class Sample(Base):
     source = text
     counter_name = text
     counter_type = text
@@ -221,106 +152,56 @@ class Event(Base):
         if counter_volume is not None:
             counter_volume = float(counter_volume)
         resource_metadata = _flatten_metadata(resource_metadata)
-        super(Event, self).__init__(counter_volume=counter_volume,
+        super(Sample, self).__init__(counter_volume=counter_volume,
                                     resource_metadata=resource_metadata,
                                     **kwds)
 
 
-class Duration(Base):
-    start_timestamp = datetime.datetime
-    end_timestamp = datetime.datetime
+class Statistics(Base):
+    min = float
+    max = float
+    avg = float
+    sum = float
+    count = int
     duration = float
 
 
 class MeterController(RestController):
     """Manages operations on a single meter.
     """
-
-    volume = MeterVolumeController()
-
     _custom_actions = {
-        'duration': ['GET'],
+        'statistics': ['GET'],
         }
 
     def __init__(self, meter_id):
         request.context['meter_id'] = meter_id
         self._id = meter_id
 
-    @wsme.pecan.wsexpose([Event])
-    def get_all(self):
+    @wsme.pecan.wsexpose([Sample], [Query])
+    def get_all(self, q=[]):
         """Return all events for the meter.
         """
-        q_ts = _get_query_timestamps(request.params)
-        f = storage.EventFilter(
-            user=request.context.get('user_id'),
-            project=request.context.get('project_id'),
-            start=q_ts['query_start'],
-            end=q_ts['query_end'],
-            resource=request.context.get('resource_id'),
-            meter=self._id,
-            source=request.context.get('source_id'),
-            )
-        return [Event(**e)
-                for e in request.storage_conn.get_raw_events(f)
-                ]
+        kwargs = _query_to_kwargs(q)
+        kwargs['meter'] = self._id
+        print 'in get_all meter samples'
+        print 'kwargs are: %s' % kwargs
+        f = storage.EventFilter(**kwargs)
+        return [Sample(**e)
+            for e in request.storage_conn.get_raw_events(f)
+            ]
 
     # TODO(jd) replace str for timestamp by datetime?
-    @wsme.pecan.wsexpose(Duration, str, str, int)
-    def duration(self, start_timestamp=None, end_timestamp=None,
-                 search_offset=0):
+    @wsme.pecan.wsexpose(Statistics, [Query])
+    def statistics(self, q=[]):
         """Computes the duration of the meter events in the time range given.
         """
-        q_ts = _get_query_timestamps(dict(start_timestamp=start_timestamp,
-                                          end_timestamp=end_timestamp,
-                                          search_offset=search_offset))
-        start_timestamp = q_ts['start_timestamp']
-        end_timestamp = q_ts['end_timestamp']
-
-        # Query the database for the interval of timestamps
-        # within the desired range.
-        f = storage.EventFilter(user=request.context.get('user_id'),
-                                project=request.context.get('project_id'),
-                                start=q_ts['query_start'],
-                                end=q_ts['query_end'],
-                                resource=request.context.get('resource_id'),
-                                meter=self._id,
-                                source=request.context.get('source_id'),
-                                )
-        min_ts, max_ts = request.storage_conn.get_event_interval(f)
-
-        # "Clamp" the timestamps we return to the original time
-        # range, excluding the offset.
-        LOG.debug('start_timestamp %s, end_timestamp %s, min_ts %s, max_ts %s',
-                  start_timestamp, end_timestamp, min_ts, max_ts)
-        if start_timestamp and min_ts and min_ts < start_timestamp:
-            min_ts = start_timestamp
-            LOG.debug('clamping min timestamp to range')
-        if end_timestamp and max_ts and max_ts > end_timestamp:
-            max_ts = end_timestamp
-            LOG.debug('clamping max timestamp to range')
-
-        # If we got valid timestamps back, compute a duration in minutes.
-        #
-        # If the min > max after clamping then we know the
-        # timestamps on the events fell outside of the time
-        # range we care about for the query, so treat them as
-        # "invalid."
-        #
-        # If the timestamps are invalid, return None as a
-        # sentinal indicating that there is something "funny"
-        # about the range.
-        if min_ts and max_ts and (min_ts <= max_ts):
-            # Can't use timedelta.total_seconds() because
-            # it is not available in Python 2.6.
-            diff = max_ts - min_ts
-            duration = (diff.seconds + (diff.days * 24 * 60 ** 2)) / 60
-        else:
-            min_ts = max_ts = duration = None
-
-        return Duration(start_timestamp=min_ts,
-                        end_timestamp=max_ts,
-                        duration=duration,
-                        )
+        kwargs = _query_to_kwargs(q)
+        kwargs['meter'] = self._id
+        print 'in get_all meter statistics'
+        print 'kwargs are: %s' % kwargs
+        f = storage.EventFilter(**kwargs)
+        stat = request.storage_conn.get_meter_statistics(f)
+        return Statistics(**stat)
 
 
 class Meter(Base):
@@ -338,27 +219,22 @@ class MetersController(RestController):
     def _lookup(self, meter_id, *remainder):
         return MeterController(meter_id), remainder
 
-    @wsme.pecan.wsexpose([Meter])
-    def get_all(self):
+    @wsme.pecan.wsexpose([Meter], [Query])
+    def get_all(self, q=[]):
+        kwargs = _query_to_kwargs(q)
         print 'in get_all meters'
-        user_id = request.context.get('user_id')
-        project_id = request.context.get('project_id')
-        resource_id = request.context.get('resource_id')
-        source_id = request.context.get('source_id')
+        print 'kwargs are: %s' % kwargs
         return [Meter(**m)
-                for m in request.storage_conn.get_meters(user=user_id,
-                                                         project=project_id,
-                                                         resource=resource_id,
-                                                         source=source_id,
-                                                         )]
+                for m in request.storage_conn.get_meters(**kwargs)]
 
 
 class ResourceSummary(Base):
     resource_id = text
     project_id = text
     user_id = text
+    source = text
     def __init__(self, **kwds):
-        keys = ('resource_id', 'project_id', 'user_id')
+        keys = ('resource_id', 'project_id', 'user_id', 'source')
         needed = dict((k, kwds.get(k)) for k in keys)
         super(ResourceSummary, self).__init__( **needed)
 
@@ -383,9 +259,9 @@ class ResourceController(RestController):
         request.context['resource_id'] = resource_id
 
     @wsme.pecan.wsexpose([Resource])
-    def get_all(self, start_timestamp=None, end_timestamp=None):
+    def get_all(self):
             r = request.storage_conn.get_resources(
-                source=request.context.get('resource_id'),
+                resource=request.context.get('resource_id'),
                 )[0]
             return Resource(**r)
 
@@ -399,15 +275,11 @@ class ResourcesController(RestController):
 
     @wsme.pecan.wsexpose([ResourceSummary], [Query])
     def get_all(self, q=[]):
-        print 'Query is %s' % (q)
-
+        kwargs = _query_to_kwargs(q)
+        print 'kwargs are: %s' % kwargs
         resources = [
             ResourceSummary(**r)
-            for r in request.storage_conn.get_resources(
-                source=request.context.get('source_id'),
-                user=request.context.get('user_id'),
-                project=request.context.get('project_id'),
-                )]
+            for r in request.storage_conn.get_resources(**kwargs)]
         return resources
 
 
