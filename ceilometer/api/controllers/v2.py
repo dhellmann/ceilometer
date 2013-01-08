@@ -84,10 +84,12 @@ def _query_to_kwargs(query):
         else:
             raise ValueError('unrecognized query field %r' % i.field)
 
-    if len(metaquery) > 0:
+    if metaquery:
         kwargs['metaquery'] = metaquery
-    if len(stamp) > 0:
-        kwargs.update(_get_query_timestamps(stamp))
+    if stamp:
+        q_ts = _get_query_timestamps(stamp)
+        kwargs['start'] = q_ts['query_start']
+        kwargs['end'] = q_ts['query_end']
     return kwargs
 
 
