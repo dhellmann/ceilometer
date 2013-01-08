@@ -111,6 +111,9 @@ class FunctionalTest(unittest.TestCase):
                     'ceilometer': {'level': 'DEBUG',
                                    'handlers': ['console'],
                                    },
+                    'wsme': {'level': 'DEBUG',
+                             'handlers': ['console'],
+                             },
                     },
                 'handlers': {
                     'console': {
