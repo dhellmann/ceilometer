@@ -239,18 +239,6 @@ class MetersController(RestController):
                 for m in request.storage_conn.get_meters(**kwargs)]
 
 
-class ResourceSummary(Base):
-    resource_id = text
-    project_id = text
-    user_id = text
-    source = text
-
-    def __init__(self, **kwds):
-        keys = ('resource_id', 'project_id', 'user_id', 'source')
-        needed = dict((k, kwds.get(k)) for k in keys)
-        super(ResourceSummary, self).__init__(**needed)
-
-
 class Resource(Base):
     resource_id = text
     project_id = text
@@ -285,12 +273,12 @@ class ResourcesController(RestController):
     def _lookup(self, resource_id, *remainder):
         return ResourceController(resource_id), remainder
 
-    @wsme.pecan.wsexpose([ResourceSummary], [Query])
+    @wsme.pecan.wsexpose([Resource], [Query])
     def get_all(self, q=[]):
         kwargs = _query_to_kwargs(q)
         LOG.debug('ResourcesController.get_all kwargs=%s', kwargs)
         resources = [
-            ResourceSummary(**r)
+            Resource(**r)
             for r in request.storage_conn.get_resources(**kwargs)]
         return resources
 
