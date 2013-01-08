@@ -132,20 +132,9 @@ class FunctionalTest(unittest.TestCase):
         self.stubs = stubout.StubOutForTesting()
 
         self.app = self._make_app()
-        self._stubout_sources()
 
     def _make_app(self):
         return load_test_app(self.config)
-
-    def _stubout_sources(self):
-        """Source data is usually read from a file, but
-        we want to let tests define their own. The class
-        attribute SOURCE_DATA is injected into the controller
-        as though it was read from the usual configuration
-        file.
-        """
-        self.stubs.SmartSet(v2.SourcesController, 'sources',
-                            self.SOURCE_DATA)
 
     def tearDown(self):
         self.mox.UnsetStubs()
