@@ -435,7 +435,6 @@ class Connection(base.Connection):
             del e['_id']
             yield e
 
-
     def get_meter_statistics(self, event_filter):
         """Return an iterable of dictionaries containing meter statistics.
         described by the query parameters.
@@ -457,17 +456,23 @@ class Connection(base.Connection):
                                            {'inline': 1},
                                            query=q,
                                            )
-        r = results['results'][0]['value']
-        count = 1
-        if r['count'] > 0:
-            count = r['count']
+        if results['results']:
+            r = results['results'][0]['value']
+        else:
+            r = {'count': 0,
+                 'min': None,
+                 'max': None,
+                 'qty': None,
+                 }
+        count = int(r['count'])
         return {'min': r['min'],
                 'sum': r['qty'],
-                'count': int(r['count']),
-                'avg': r['qty'] / count,
+                'count': count,
+                'avg': (r['qty'] / count) if count > 0 else None,
                 'max': r['max'],
-                'duration': 0}
-
+                # FIXME(dhellmann): Need to handle times here
+                'duration': 0,
+                }
 
     def get_volume_sum(self, event_filter):
         """Return the sum of the volume field for the events
