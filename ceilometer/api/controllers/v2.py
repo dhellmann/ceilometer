@@ -55,8 +55,13 @@ class Query(Base):
     op = operation_kind
     value = text
 
+    def __repr__(self):
+        # for logging calls
+        return '<Query %r %s %r>' % (self.field, self.op, self.value)
+
 
 def _query_to_kwargs(query):
+    # TODO(dhellmann): This function needs tests of its own.
     translatation = {'user_id': 'user',
                      'project_id': 'project',
                      'resource_id': 'resource',
@@ -65,6 +70,7 @@ def _query_to_kwargs(query):
     stamp = {}
     metaquery = {}
     for i in query:
+        LOG.debug('_query_to_kwargs i=%s', i)
         if i.field in translatation:
             kwargs[translatation[i.field]] = i.value
         elif i.field == 'timestamp' and i.op in ('lt', 'le'):
@@ -75,6 +81,8 @@ def _query_to_kwargs(query):
             stamp['search_offset'] = i.value
         elif i.field.startswith('metadata.'):
             metaquery[i.field] = i.value
+        else:
+            raise ValueError('unrecognized query field %r' % i.field)
 
     if len(metaquery) > 0:
         kwargs['metaquery'] = metaquery
