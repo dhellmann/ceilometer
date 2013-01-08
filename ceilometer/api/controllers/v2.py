@@ -172,6 +172,10 @@ class Statistics(Base):
     sum = float
     count = int
     duration = float
+    # FIXME(dhellmann): We need to restore the start and end
+    # timestamps from the old Duration class for some of the
+    # computations being done in the DUDE. For example, to tell a user
+    # they used 9 hours of an instance between X and Y times.
 
 
 class MeterController(RestController):
@@ -191,8 +195,7 @@ class MeterController(RestController):
         """
         kwargs = _query_to_kwargs(q)
         kwargs['meter'] = self._id
-        print 'in get_all meter samples'
-        print 'kwargs are: %s' % kwargs
+        LOG.debug('in get_all meter samples, kwargs=%s', kwargs)
         f = storage.EventFilter(**kwargs)
         return [Sample(**e)
             for e in request.storage_conn.get_raw_events(f)
@@ -205,8 +208,7 @@ class MeterController(RestController):
         """
         kwargs = _query_to_kwargs(q)
         kwargs['meter'] = self._id
-        print 'in get_all meter statistics'
-        print 'kwargs are: %s' % kwargs
+        LOG.debug('in get_all meter statistics kwargs=%s', kwargs)
         f = storage.EventFilter(**kwargs)
         stat = request.storage_conn.get_meter_statistics(f)
         return Statistics(**stat)
@@ -230,8 +232,7 @@ class MetersController(RestController):
     @wsme.pecan.wsexpose([Meter], [Query])
     def get_all(self, q=[]):
         kwargs = _query_to_kwargs(q)
-        print 'in get_all meters'
-        print 'kwargs are: %s' % kwargs
+        LOG.debug('in get_all meters kwargs=%s', kwargs)
         return [Meter(**m)
                 for m in request.storage_conn.get_meters(**kwargs)]
 
@@ -285,7 +286,7 @@ class ResourcesController(RestController):
     @wsme.pecan.wsexpose([ResourceSummary], [Query])
     def get_all(self, q=[]):
         kwargs = _query_to_kwargs(q)
-        print 'kwargs are: %s' % kwargs
+        LOG.debug('ResourcesController.get_all kwargs=%s', kwargs)
         resources = [
             ResourceSummary(**r)
             for r in request.storage_conn.get_resources(**kwargs)]
