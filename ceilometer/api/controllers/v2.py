@@ -47,7 +47,7 @@ from ceilometer import storage
 LOG = logging.getLogger(__name__)
 
 
-operation_kind = Enum(str, 'lt','le','eq','ne','ge','gt')
+operation_kind = Enum(str, 'lt', 'le', 'eq', 'ne', 'ge', 'gt')
 
 
 class Query(Base):
@@ -67,9 +67,9 @@ def _query_to_kwargs(query):
     for i in query:
         if i.field in translatation:
             kwargs[translatation[i.field]] = i.value
-        elif i.field == 'timestamp' and i.op in ('lt','le'):
+        elif i.field == 'timestamp' and i.op in ('lt', 'le'):
             stamp['end_timestamp'] = i.value
-        elif i.field == 'timestamp' and i.op in ('gt','ge'):
+        elif i.field == 'timestamp' and i.op in ('gt', 'ge'):
             stamp['start_timestamp'] = i.value
         elif i.field == 'search_offset':
             stamp['search_offset'] = i.value
@@ -233,10 +233,11 @@ class ResourceSummary(Base):
     project_id = text
     user_id = text
     source = text
+
     def __init__(self, **kwds):
         keys = ('resource_id', 'project_id', 'user_id', 'source')
         needed = dict((k, kwds.get(k)) for k in keys)
-        super(ResourceSummary, self).__init__( **needed)
+        super(ResourceSummary, self).__init__(**needed)
 
 
 class Resource(Base):
