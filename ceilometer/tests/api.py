@@ -152,8 +152,7 @@ class FunctionalTest(unittest.TestCase):
                         }
         for query in q:
             for name in ['field', 'op', 'value']:
-                if name in query:
-                    query_params['q.%s' % name].append(query[name])
+                query_params['q.%s' % name].append(query.get(name, ''))
         all_params = {}
         all_params.update(params)
         if q:
