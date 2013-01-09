@@ -174,10 +174,47 @@ class Statistics(Base):
     sum = float
     count = int
     duration = float
+    duration_start = datetime.datetime
+    duration_end = datetime.datetime
     # FIXME(dhellmann): We need to restore the start and end
     # timestamps from the old Duration class for some of the
     # computations being done in the DUDE. For example, to tell a user
     # they used 9 hours of an instance between X and Y times.
+
+    def calc_duration(self, start_timestamp, end_timestamp):
+        # "Clamp" the timestamps we return to the original time
+        # range, excluding the offset.
+        LOG.debug('start_timestamp %s, end_timestamp %s',
+                  start_timestamp, end_timestamp)
+        LOG.debug('duration_start %s, duration_end %s',
+                  self.duration_start, self.duration_end)
+        if start_timestamp and self.duration_start and \
+           self.duration_start < start_timestamp:
+            self.duration_start = start_timestamp
+            LOG.debug('clamping min timestamp to range')
+        if end_timestamp and self.duration_end and \
+           self.duration_end > end_timestamp:
+            self.duration_end = end_timestamp
+            LOG.debug('clamping max timestamp to range')
+
+        # If we got valid timestamps back, compute a duration in minutes.
+        #
+        # If the min > max after clamping then we know the
+        # timestamps on the events fell outside of the time
+        # range we care about for the query, so treat them as
+        # "invalid."
+        #
+        # If the timestamps are invalid, return None as a
+        # sentinal indicating that there is something "funny"
+        # about the range.
+        if self.duration_start and self.duration_end and \
+          (self.duration_start <= self.duration_end):
+            # Can't use timedelta.total_seconds() because
+            # it is not available in Python 2.6.
+            diff = self.duration_end - self.duration_start
+            self.duration = (diff.seconds + (diff.days * 24 * 60 ** 2)) / 60
+        else:
+            self.duration_start = self.duration_end = self.duration = None
 
 
 class MeterController(RestController):
@@ -203,17 +240,18 @@ class MeterController(RestController):
             for e in request.storage_conn.get_raw_events(f)
             ]
 
-    # TODO(jd) replace str for timestamp by datetime?
     @wsme.pecan.wsexpose(Statistics, [Query])
     def statistics(self, q=[]):
-        """Computes the duration of the meter events in the time range given.
+        """Computes the statistics of the meter events in the time range given.
         """
         kwargs = _query_to_kwargs(q)
         kwargs['meter'] = self._id
         LOG.debug('in get_all meter statistics kwargs=%s', kwargs)
         f = storage.EventFilter(**kwargs)
-        stat = request.storage_conn.get_meter_statistics(f)
-        return Statistics(**stat)
+        stat = Statistics(**request.storage_conn.get_meter_statistics(f))
+        stat.calc_duration(kwargs.get('start_timestamp'),
+                           kwargs.get('end_timestamp'))
+        return stat
 
 
 class Meter(Base):
