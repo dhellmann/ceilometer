@@ -51,8 +51,16 @@ operation_kind = Enum(str, 'lt', 'le', 'eq', 'ne', 'ge', 'gt')
 
 
 class Query(Base):
+    def get_op(self):
+        return self._op or 'eq'
+
+    def set_op(self, value):
+        self._op = value
+
     field = text
-    op = operation_kind
+    #op = wsme.wsattr(operation_kind, default='eq')
+    # this ^ doesn't seem to work.
+    op = wsme.wsproperty(operation_kind, get_op, set_op)
     value = text
 
     def __repr__(self):
