@@ -79,18 +79,26 @@ def _query_to_kwargs(query):
     metaquery = {}
     for i in query:
         LOG.debug('_query_to_kwargs i=%s', i)
-        if i.field in translatation:
-            kwargs[translatation[i.field]] = i.value
-        elif i.field == 'timestamp' and i.op in ('lt', 'le'):
-            stamp['end_timestamp'] = i.value
-        elif i.field == 'timestamp' and i.op in ('gt', 'ge'):
-            stamp['start_timestamp'] = i.value
-        elif i.field == 'search_offset':
-            stamp['search_offset'] = i.value
-        elif i.field.startswith('metadata.'):
-            metaquery[i.field] = i.value
+        if i.field == 'timestamp':
+            if i.op in ('lt', 'le'):
+                stamp['end_timestamp'] = i.value
+            elif i.op in ('gt', 'ge'):
+                stamp['start_timestamp'] = i.value
+            else:
+                LOG.warn('_query_to_kwargs ignoring \"%s\" unexpected op \"%s\"' %
+                        (i.field, i.op))
         else:
-            raise ValueError('unrecognized query field %r' % i.field)
+            if i.op != 'eq':
+                LOG.warn('_query_to_kwargs ignoring \"%s\" unimplemented op \"%s\"' %
+                        (i.field, i.op))
+            if i.field == 'search_offset':
+                stamp['search_offset'] = i.value
+            elif i.field in translatation:
+                kwargs[translatation[i.field]] = i.value
+            elif i.field.startswith('metadata.'):
+                metaquery[i.field] = i.value
+            else:
+                raise ValueError('unrecognized query field %r' % i.field)
 
     if metaquery:
         kwargs['metaquery'] = metaquery
