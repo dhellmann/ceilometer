@@ -129,3 +129,21 @@ class Connection(base.Connection):
         """Return the min and max timestamp for events
         matching the event_filter.
         """
+
+    def get_meter_statistics(self, event_filter):
+        """Return an iterable of dictionaries containing meter statistics.
+        described by the query parameters.
+
+        The filter must have a meter value set.
+
+        { 'min':
+          'max':
+          'avg':
+          'sum':
+          'count':
+          'duration':
+          'duration_start':
+          'duration_end':
+          }
+
+        """
