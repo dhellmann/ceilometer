@@ -257,8 +257,8 @@ class MeterController(RestController):
         LOG.debug('in get_all meter statistics kwargs=%s', kwargs)
         f = storage.EventFilter(**kwargs)
         stat = Statistics(**request.storage_conn.get_meter_statistics(f))
-        stat.calc_duration(kwargs.get('start_timestamp'),
-                           kwargs.get('end_timestamp'))
+        stat.calc_duration(kwargs.get('start'),
+                           kwargs.get('end'))
         return stat
 
 
