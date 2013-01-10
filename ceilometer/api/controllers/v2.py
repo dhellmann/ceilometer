@@ -307,6 +307,10 @@ class MetersController(RestController):
         kwargs = _query_to_kwargs(q)
         LOG.debug('in get_all meters kwargs=%s', kwargs)
         return [Meter(**m)
+                # FIXME(dhellmann): This might result in an error if
+                # the user specifies a query argument for a field not
+                # present in the get_meters() method signature, like
+                # timestamp.
                 for m in request.storage_conn.get_meters(**kwargs)]
 
 
