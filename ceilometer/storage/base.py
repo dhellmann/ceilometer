@@ -166,15 +166,14 @@ class Connection(object):
 
         The filter must have a meter value set.
 
-        { 'resource_id': UUID of the resource,
-          'project_id': UUID of project owning the resource,
-          'user_id': UUID of user owning the resource,
-          'min':
+        { 'min':
           'max':
           'avg':
           'sum':
           'count':
           'duration':
+          'duration_start':
+          'duration_end':
           }
 
         """

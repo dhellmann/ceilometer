@@ -178,9 +178,11 @@ class Connection(base.Connection):
     MAP_STATS = bson.code.Code("""
     function () {
         emit('statistics', { min : this.counter_volume,
-                                    max : this.counter_volume,
-                                    qty : this.counter_volume,
-                                    count : 1 } )
+                             max : this.counter_volume,
+                             qty : this.counter_volume,
+                             count : 1,
+                             timestamp_min : this.timestamp,
+                             timestamp_max : this.timestamp } )
     }
     """)
 
@@ -194,6 +196,10 @@ class Connection(base.Connection):
                res.max = values[i].max;
             res.count += values[i].count;
             res.qty += values[i].qty;
+            if ( values[i].timestamp_min < res.timestamp_min )
+               res.timestamp_min = values[i].timestamp_min;
+            if ( values[i].timestamp_max > res.timestamp_max )
+               res.timestamp_max = values[i].timestamp_max;
         }
         return res;
     }
@@ -447,6 +453,8 @@ class Connection(base.Connection):
           'sum':
           'count':
           'duration':
+          'duration_start':
+          'duration_end':
           }
 
         """
@@ -458,11 +466,19 @@ class Connection(base.Connection):
                                            )
         if results['results']:
             r = results['results'][0]['value']
+            (start, end) = self._fix_interval_min_max(r['timestamp_min'],
+                                                      r['timestamp_max'])
         else:
+            start = None
+            end = None
             r = {'count': 0,
                  'min': None,
                  'max': None,
+                 'avg': None,
                  'qty': None,
+                 'duration': None,
+                 'duration_start': None,
+                 'duration_end': None,
                  }
         count = int(r['count'])
         return {'min': r['min'],
@@ -470,8 +486,9 @@ class Connection(base.Connection):
                 'count': count,
                 'avg': (r['qty'] / count) if count > 0 else None,
                 'max': r['max'],
-                # FIXME(dhellmann): Need to handle times here
                 'duration': 0,
+                'duration_start': start,
+                'duration_end': end,
                 }
 
     def get_volume_sum(self, event_filter):
@@ -500,6 +517,35 @@ class Connection(base.Connection):
         return ({'resource_id': r['_id'], 'value': r['value']}
                 for r in results['results'])
 
+    def _fix_interval_min_max(self, a_min, a_max):
+        if hasattr(a_min, 'valueOf') and a_min.valueOf is not None:
+            # NOTE (dhellmann): HACK ALERT
+            #
+            # The real MongoDB server can handle Date objects and
+            # the driver converts them to datetime instances
+            # correctly but the in-memory implementation in MIM
+            # (used by the tests) returns a spidermonkey.Object
+            # representing the "value" dictionary and there
+            # doesn't seem to be a way to recursively introspect
+            # that object safely to convert the min and max values
+            # back to datetime objects. In this method, we know
+            # what type the min and max values are expected to be,
+            # so it is safe to do the conversion
+            # here. JavaScript's time representation uses
+            # different units than Python's, so we divide to
+            # convert to the right units and then create the
+            # datetime instances to return.
+            #
+            # The issue with MIM is documented at
+            # https://sourceforge.net/p/merciless/bugs/3/
+            #
+            a_min = datetime.datetime.fromtimestamp(
+                a_min.valueOf() // 1000)
+            a_max = datetime.datetime.fromtimestamp(
+                a_max.valueOf() // 1000)
+        return (a_min, a_max)
+
+
     def get_event_interval(self, event_filter):
         """Return the min and max timestamps from events,
         using the event_filter to limit the events seen.
@@ -514,32 +560,5 @@ class Connection(base.Connection):
                                            )
         if results['results']:
             answer = results['results'][0]['value']
-            a_min = answer['min']
-            a_max = answer['max']
-            if hasattr(a_min, 'valueOf') and a_min.valueOf is not None:
-                # NOTE (dhellmann): HACK ALERT
-                #
-                # The real MongoDB server can handle Date objects and
-                # the driver converts them to datetime instances
-                # correctly but the in-memory implementation in MIM
-                # (used by the tests) returns a spidermonkey.Object
-                # representing the "value" dictionary and there
-                # doesn't seem to be a way to recursively introspect
-                # that object safely to convert the min and max values
-                # back to datetime objects. In this method, we know
-                # what type the min and max values are expected to be,
-                # so it is safe to do the conversion
-                # here. JavaScript's time representation uses
-                # different units than Python's, so we divide to
-                # convert to the right units and then create the
-                # datetime instances to return.
-                #
-                # The issue with MIM is documented at
-                # https://sourceforge.net/p/merciless/bugs/3/
-                #
-                a_min = datetime.datetime.fromtimestamp(
-                    a_min.valueOf() // 1000)
-                a_max = datetime.datetime.fromtimestamp(
-                    a_max.valueOf() // 1000)
-            return (a_min, a_max)
+            return self._fix_interval_min_max(answer['min'], answer['max'])
         return (None, None)

@@ -364,6 +364,32 @@ class Connection(base.Connection):
         a_min, a_max = results[0]
         return (a_min, a_max)
 
+    def get_meter_statistics(self, event_filter):
+        """Return an iterable of dictionaries containing meter statistics.
+        described by the query parameters.
+
+        The filter must have a meter value set.
+
+        { 'min':
+          'max':
+          'avg':
+          'sum':
+          'count':
+          'duration':
+          'duration_start':
+          'duration_end':
+          }
+        """
+
+        return {'count': 0,
+                'min': None,
+                'max': None,
+                'avg': None,
+                'qty': None,
+                'duration': None,
+                'duration_start': None,
+                'duration_end': None,
+                }
 
 ############################
 
