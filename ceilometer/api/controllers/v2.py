@@ -80,16 +80,22 @@ def _query_to_kwargs(query):
     for i in query:
         LOG.debug('_query_to_kwargs i=%s', i)
         if i.field == 'timestamp':
+            # FIXME(dhellmann): This logic is not consistent with the
+            # way the timestamps are treated inside the mongo driver
+            # (the end timestamp is always tested using $lt). We
+            # should just pass a single timestamp through to the
+            # storage layer with the operator and let the storage
+            # layer use that operator.
             if i.op in ('lt', 'le'):
                 stamp['end_timestamp'] = i.value
             elif i.op in ('gt', 'ge'):
                 stamp['start_timestamp'] = i.value
             else:
-                LOG.warn('_query_to_kwargs ignoring \"%s\" unexpected op \"%s\"' %
+                LOG.warn('_query_to_kwargs ignoring %r unexpected op %r"' %
                         (i.field, i.op))
         else:
             if i.op != 'eq':
-                LOG.warn('_query_to_kwargs ignoring \"%s\" unimplemented op \"%s\"' %
+                LOG.warn('_query_to_kwargs ignoring %r unimplemented op %r' %
                         (i.field, i.op))
             if i.field == 'search_offset':
                 stamp['search_offset'] = i.value
@@ -192,24 +198,25 @@ class Statistics(Base):
     duration = float
     duration_start = datetime.datetime
     duration_end = datetime.datetime
-    # FIXME(dhellmann): We need to restore the start and end
-    # timestamps from the old Duration class for some of the
-    # computations being done in the DUDE. For example, to tell a user
-    # they used 9 hours of an instance between X and Y times.
 
-    def calc_duration(self, start_timestamp, end_timestamp):
+    def __init__(self, start_timestamp=None, end_timestamp=None, **kwds):
+        super(Statistics, self).__init__(**kwds)
+        LOG.debug('Statistics start_timestamp %s', start_timestamp)
+        LOG.debug('Statistics end_timestamp %s', end_timestamp)
+        LOG.debug('Statistics %s', kwds)
+        self._update_duration(start_timestamp, end_timestamp)
+
+    def _update_duration(self, start_timestamp, end_timestamp):
         # "Clamp" the timestamps we return to the original time
         # range, excluding the offset.
-        LOG.debug('start_timestamp %s, end_timestamp %s',
-                  start_timestamp, end_timestamp)
-        LOG.debug('duration_start %s, duration_end %s',
-                  self.duration_start, self.duration_end)
-        if start_timestamp and self.duration_start and \
-           self.duration_start < start_timestamp:
+        if (start_timestamp and
+                self.duration_start and
+                self.duration_start < start_timestamp):
             self.duration_start = start_timestamp
             LOG.debug('clamping min timestamp to range')
-        if end_timestamp and self.duration_end and \
-           self.duration_end > end_timestamp:
+        if (end_timestamp and
+                self.duration_end and
+                self.duration_end > end_timestamp):
             self.duration_end = end_timestamp
             LOG.debug('clamping max timestamp to range')
 
@@ -238,7 +245,7 @@ class MeterController(RestController):
     """
     _custom_actions = {
         'statistics': ['GET'],
-        }
+    }
 
     def __init__(self, meter_id):
         request.context['meter_id'] = meter_id
@@ -249,12 +256,13 @@ class MeterController(RestController):
         """Return all events for the meter.
         """
         kwargs = _query_to_kwargs(q)
+        LOG.debug('kwargs %s', kwargs)
         kwargs['meter'] = self._id
         LOG.debug('in get_all meter samples, kwargs=%s', kwargs)
         f = storage.EventFilter(**kwargs)
         return [Sample(**e)
-            for e in request.storage_conn.get_raw_events(f)
-            ]
+                for e in request.storage_conn.get_raw_events(f)
+                ]
 
     @wsme.pecan.wsexpose(Statistics, [Query])
     def statistics(self, q=[]):
@@ -262,11 +270,20 @@ class MeterController(RestController):
         """
         kwargs = _query_to_kwargs(q)
         kwargs['meter'] = self._id
-        LOG.debug('in get_all meter statistics kwargs=%s', kwargs)
+        LOG.debug('MeterController.statistics %s', kwargs)
         f = storage.EventFilter(**kwargs)
-        stat = Statistics(**request.storage_conn.get_meter_statistics(f))
-        stat.calc_duration(kwargs.get('start'),
-                           kwargs.get('end'))
+        computed = request.storage_conn.get_meter_statistics(f)
+        # Find the original timestamp in the query to use for clamping
+        # the duration returned in the statistics.
+        start = end = None
+        for i in q:
+            if i.field == 'timestamp' and i.op in ('lt', 'le'):
+                end = timeutils.parse_isotime(i.value).replace(tzinfo=None)
+            elif i.field == 'timestamp' and i.op in ('gt', 'ge'):
+                start = timeutils.parse_isotime(i.value).replace(tzinfo=None)
+        stat = Statistics(start_timestamp=start,
+                          end_timestamp=end,
+                          **computed)
         return stat
 
 
