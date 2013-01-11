@@ -51,6 +51,9 @@ operation_kind = Enum(str, 'lt', 'le', 'eq', 'ne', 'ge', 'gt')
 
 
 class Query(Base):
+
+    _op = None
+
     def get_op(self):
         return self._op or 'eq'
 
@@ -58,14 +61,24 @@ class Query(Base):
         self._op = value
 
     field = text
-    #op = wsme.wsattr(operation_kind, default='eq')
-    # this ^ doesn't seem to work.
+    "The name of the field to test"
+
     op = wsme.wsproperty(operation_kind, get_op, set_op)
+    "The comparison operator"
+
     value = text
+    "The value to compare against the field values"
 
     def __repr__(self):
         # for logging calls
         return '<Query %r %s %r>' % (self.field, self.op, self.value)
+
+    @classmethod
+    def sample(cls):
+        return cls(field='resource_id',
+                   op='eq',
+                   value='d99c8ace-dce8-4f25-8677-2004d363280b',
+                   )
 
 
 def _query_to_kwargs(query, db_func):
@@ -322,15 +335,37 @@ class MetersController(RestController):
 
 
 class Resource(Base):
+    """Something for which metering data was collected.
+    """
+
     resource_id = text
+    "The UUID of the resource"
+
     project_id = text
+    "The owner of the resource"
+
     user_id = text
+    "The user who created or modified the resource"
+
     timestamp = datetime.datetime
+    "The last time a sample for any meter related to the resource was seen"
+
     metadata = {text: text}
+    "Information about the resource"
 
     def __init__(self, metadata={}, **kwds):
         metadata = _flatten_metadata(metadata)
         super(Resource, self).__init__(metadata=metadata, **kwds)
+
+    @classmethod
+    def sample(cls):
+        return cls(resource_id='d99c8ace-dce8-4f25-8677-2004d363280b',
+                   project_id='c59244c9-bdee-4088-8666-6c0e8b6f2680',
+                   user_id='045d63ed-f190-4066-ab6f-6ca53b2dfb0d',
+                   timestamp=datetime.datetime(2013, 1, 11, 16, 49),
+                   metadata={'field': 'value',
+                             'another_field': 2,
+                             })
 
 
 class ResourceController(RestController):
