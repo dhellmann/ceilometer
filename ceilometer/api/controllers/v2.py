@@ -30,7 +30,7 @@
 # [DELETE] /meters/<meter> -- delete the meter and samples
 #
 import datetime
-
+import inspect
 import pecan
 from pecan import request
 from pecan.rest import RestController
@@ -68,14 +68,16 @@ class Query(Base):
         return '<Query %r %s %r>' % (self.field, self.op, self.value)
 
 
-def _query_to_kwargs(query):
+def _query_to_kwargs(query, db_func):
     # TODO(dhellmann): This function needs tests of its own.
+    valid_keys = inspect.getargspec(db_func)[0]
+    if 'self' in valid_keys:
+        valid_keys.remove('self')
     translatation = {'user_id': 'user',
                      'project_id': 'project',
-                     'resource_id': 'resource',
-                     'source': 'source'}
-    kwargs = {}
+                     'resource_id': 'resource'}
     stamp = {}
+    trans = {}
     metaquery = {}
     for i in query:
         LOG.debug('_query_to_kwargs i=%s', i)
@@ -92,26 +94,38 @@ def _query_to_kwargs(query):
                 stamp['start_timestamp'] = i.value
             else:
                 LOG.warn('_query_to_kwargs ignoring %r unexpected op %r"' %
-                        (i.field, i.op))
+                         (i.field, i.op))
         else:
             if i.op != 'eq':
                 LOG.warn('_query_to_kwargs ignoring %r unimplemented op %r' %
-                        (i.field, i.op))
-            if i.field == 'search_offset':
+                         (i.field, i.op))
+            elif i.field == 'search_offset':
                 stamp['search_offset'] = i.value
-            elif i.field in translatation:
-                kwargs[translatation[i.field]] = i.value
             elif i.field.startswith('metadata.'):
                 metaquery[i.field] = i.value
             else:
-                raise ValueError('unrecognized query field %r' % i.field)
+                trans[translatation.get(i.field, i.field)] = i.value
 
-    if metaquery:
+    kwargs = {}
+    if metaquery and 'metaquery' in valid_keys:
         kwargs['metaquery'] = metaquery
     if stamp:
         q_ts = _get_query_timestamps(stamp)
-        kwargs['start'] = q_ts['query_start']
-        kwargs['end'] = q_ts['query_end']
+        if 'start' in valid_keys:
+            kwargs['start'] = q_ts['query_start']
+            kwargs['end'] = q_ts['query_end']
+        elif 'start_timestamp' in valid_keys:
+            kwargs['start_timestamp'] = q_ts['query_start']
+            kwargs['end_timestamp'] = q_ts['query_end']
+        else:
+            raise ValueError('unrecognized query field %r' % 'timestamp')
+
+    if trans:
+        for k in trans:
+            if k not in valid_keys:
+                raise ValueError('unrecognized query field %r' % i.field)
+            kwargs[k] = trans[k]
+
     return kwargs
 
 
@@ -185,8 +199,8 @@ class Sample(Base):
             counter_volume = float(counter_volume)
         resource_metadata = _flatten_metadata(resource_metadata)
         super(Sample, self).__init__(counter_volume=counter_volume,
-                                    resource_metadata=resource_metadata,
-                                    **kwds)
+                                     resource_metadata=resource_metadata,
+                                     **kwds)
 
 
 class Statistics(Base):
@@ -255,7 +269,7 @@ class MeterController(RestController):
     def get_all(self, q=[]):
         """Return all events for the meter.
         """
-        kwargs = _query_to_kwargs(q)
+        kwargs = _query_to_kwargs(q, storage.EventFilter.__init__)
         LOG.debug('kwargs %s', kwargs)
         kwargs['meter'] = self._id
         LOG.debug('in get_all meter samples, kwargs=%s', kwargs)
@@ -268,7 +282,7 @@ class MeterController(RestController):
     def statistics(self, q=[]):
         """Computes the statistics of the meter events in the time range given.
         """
-        kwargs = _query_to_kwargs(q)
+        kwargs = _query_to_kwargs(q, storage.EventFilter.__init__)
         kwargs['meter'] = self._id
         LOG.debug('MeterController.statistics %s', kwargs)
         f = storage.EventFilter(**kwargs)
@@ -304,13 +318,9 @@ class MetersController(RestController):
 
     @wsme.pecan.wsexpose([Meter], [Query])
     def get_all(self, q=[]):
-        kwargs = _query_to_kwargs(q)
+        kwargs = _query_to_kwargs(q, request.storage_conn.get_meters)
         LOG.debug('in get_all meters kwargs=%s', kwargs)
         return [Meter(**m)
-                # FIXME(dhellmann): This might result in an error if
-                # the user specifies a query argument for a field not
-                # present in the get_meters() method signature, like
-                # timestamp.
                 for m in request.storage_conn.get_meters(**kwargs)]
 
 
@@ -336,8 +346,7 @@ class ResourceController(RestController):
     @wsme.pecan.wsexpose([Resource])
     def get_all(self):
             r = request.storage_conn.get_resources(
-                resource=request.context.get('resource_id'),
-                )[0]
+                resource=request.context.get('resource_id'))[0]
             return Resource(**r)
 
 
@@ -350,7 +359,7 @@ class ResourcesController(RestController):
 
     @wsme.pecan.wsexpose([Resource], [Query])
     def get_all(self, q=[]):
-        kwargs = _query_to_kwargs(q)
+        kwargs = _query_to_kwargs(q, request.storage_conn.get_resources)
         LOG.debug('ResourcesController.get_all kwargs=%s', kwargs)
         resources = [
             Resource(**r)
