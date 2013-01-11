@@ -84,7 +84,8 @@ class TestNovaNotifier(base.TestCase):
     def fake_db_instance_system_metadata_get(context, uuid):
         return dict(meta_a=123, meta_b="foobar")
 
-    @skip.skip_unless(notifier_api, "Notifier API not found")
+    @skip.skip_test('disabling in v2flatten branch')
+    #@skip.skip_unless(notifier_api, "Notifier API not found")
     def setUp(self):
         super(TestNovaNotifier, self).setUp()
         nova_CONF.compute_driver = 'nova.virt.fake.FakeDriver'
