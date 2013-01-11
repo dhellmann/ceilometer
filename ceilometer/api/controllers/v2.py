@@ -47,10 +47,29 @@ from ceilometer import storage
 LOG = logging.getLogger(__name__)
 
 
+class ContainerRestController(RestController):
+
+    _SUBCONTROLLER_FACTORY = None
+
+    @pecan.expose()
+    def _lookup(self, *path):
+        argspec = inspect.getargspec(self._SUBCONTROLLER_FACTORY.__init__)
+        # Determine the number of positional arguments to pass to
+        # create a new controller instance.
+        nargs = len(argspec[0]) - 1  # ignore 'self'
+        args = path[:nargs]
+        # The rest of the arguments are returned for further routing.
+        remainder = path[nargs:]
+        LOG.debug('ContainerRestController dispatching to %s %r %r',
+                  self._SUBCONTROLLER_FACTORY, args, remainder)
+        return self._SUBCONTROLLER_FACTORY(*args), remainder
+
+
 operation_kind = Enum(str, 'lt', 'le', 'eq', 'ne', 'ge', 'gt')
 
 
 class Query(Base):
+    """One query rule."""
 
     _op = None
 
@@ -67,7 +86,7 @@ class Query(Base):
     "The comparison operator"
 
     value = text
-    "The value to compare against the field values"
+    "The value to compare against the field contents"
 
     def __repr__(self):
         # for logging calls
@@ -279,8 +298,8 @@ class MeterController(RestController):
         self._id = meter_id
 
     @wsme.pecan.wsexpose([Sample], [Query])
-    def get_all(self, q=[]):
-        """Return all events for the meter.
+    def get(self, q=[]):
+        """Return sampled data for the meter.
         """
         kwargs = _query_to_kwargs(q, storage.EventFilter.__init__)
         kwargs['meter'] = self._id
@@ -313,19 +332,40 @@ class MeterController(RestController):
 
 
 class Meter(Base):
+    """A unique data series from the collected data"""
+
     name = text
+    "The name of the meter"
+
     type = text
+    "The type of the meter"
+    # FIXME(dhellmann): Should be an enum
+
     resource_id = text
+    "The unique identifier for the resource where the meter is being collected"
+
     project_id = text
+    "The owner of the resource"
+
     user_id = text
+    "The user who created or modified the resource"
+
+    # FIXME(dhellmann): Need to rebase and add units.
+
+    @classmethod
+    def sample(cls):
+        return cls(name='instance',
+                   type='count',
+                   resource_id='d99c8ace-dce8-4f25-8677-2004d363280b',
+                   project_id='c59244c9-bdee-4088-8666-6c0e8b6f2680',
+                   user_id='045d63ed-f190-4066-ab6f-6ca53b2dfb0d',
+                   )
 
 
-class MetersController(RestController):
+class MetersController(ContainerRestController):
     """Works on meters."""
 
-    @pecan.expose()
-    def _lookup(self, meter_id, *remainder):
-        return MeterController(meter_id), remainder
+    _SUBCONTROLLER_FACTORY = MeterController
 
     @wsme.pecan.wsexpose([Meter], [Query])
     def get_all(self, q=[]):
@@ -368,29 +408,21 @@ class Resource(Base):
                              })
 
 
-class ResourceController(RestController):
-    """Manages operations on a single resource.
-    """
-
-    def __init__(self, resource_id):
-        request.context['resource_id'] = resource_id
-
-    @wsme.pecan.wsexpose([Resource])
-    def get_all(self):
-            r = request.storage_conn.get_resources(
-                resource=request.context.get('resource_id'))[0]
-            return Resource(**r)
-
-
 class ResourcesController(RestController):
     """Works on resources."""
 
-    @pecan.expose()
-    def _lookup(self, resource_id, *remainder):
-        return ResourceController(resource_id), remainder
+    @wsme.pecan.wsexpose(Resource, text)
+    def get_one(self, resource_id):
+        """Returns the metadata about an individual resource"""
+        LOG.debug('ResourcesController.get_one %s', resource_id)
+        r = request.storage_conn.get_resources(
+            resource=resource_id
+        )[0]
+        return Resource(**r)
 
     @wsme.pecan.wsexpose([Resource], [Query])
     def get_all(self, q=[]):
+        """Returns the list of resources matching the query."""
         kwargs = _query_to_kwargs(q, request.storage_conn.get_resources)
         LOG.debug('ResourcesController.get_all kwargs=%s', kwargs)
         resources = [
@@ -399,7 +431,7 @@ class ResourcesController(RestController):
         return resources
 
 
-class V2Controller(object):
+class V2Controller(RestController):
     """Version 2 API controller root."""
 
     resources = ResourcesController()

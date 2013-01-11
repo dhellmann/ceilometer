@@ -32,6 +32,7 @@ extensions = ['sphinx.ext.autodoc',
               'sphinx.ext.todo',
               'sphinxcontrib.autohttp.flask',
               'wsme.sphinxext',
+              'ceilometer.sphinxext',
               ]
 
 wsme_protocols = ['restjson', 'restxml']

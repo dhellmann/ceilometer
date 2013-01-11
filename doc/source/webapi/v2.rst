@@ -2,11 +2,79 @@
  V2 Web API
 ============
 
-.. default-domain:: wsme
+.. wsme:root:: ceilometer.api.controllers.v2.V2Controller
+   :webpath: /v2
 
-.. root:: ceilometer.api.controllers.root.RootController
-   :webpath:
+Resources
+=========
 
-.. autotype:: ceilometer.api.controllers.v2.Source
+API
+---
 
-.. service:: /v2/sources
+.. http:get:: /v2/resources
+
+   Returns the list of resources matching the query.
+
+   .. get_all method docstring
+
+   :param q: Rules for filtering the resources returned
+   :type q: Array of :class:`Query` objects
+   :return type: Array of :class:`Resource`
+
+.. http:get:: /v2/resources/(str:resource_id)
+
+   Returns the metadata about an individual resource
+
+   .. get_one method docstring
+
+   :param resource_id: The UUID, or other unique identifier, of the resource
+   :type resource_id: str
+   :return type: :class:`Resource`
+
+Resource Properties
+-------------------
+
+.. autotype:: ceilometer.api.controllers.v2.Resource
+   :members:
+   :samples-slot: after-docstring
+
+Meters
+======
+
+.. http:get:: /v2/meters
+
+   Return metadata about the known meters, matching the query
+
+   .. get_all method docstring
+
+   :param q: Rules for filtering the meters returned
+   :type q: Array of :class:`Query` objects
+   :return type: Array of :class:`Meter`
+
+.. http:get:: /v2/meters/(str:name)
+
+   Return samples from the specified meter matching the query
+
+   .. get_all method docstring
+
+   :param q: Rules for filtering the samples returned
+   :type q: Array of :class:`Query` objects
+   :return type: Array of :class:`Sample`
+
+Meter Properties
+----------------
+
+.. autotype:: ceilometer.api.controllers.v2.Meter
+   :members:
+   :samples-slot: after-docstring
+
+.. autotype:: ceilometer.api.controllers.v2.Sample
+   :members:
+   :samples-slot: after-docstring
+
+Queries
+=======
+
+.. autotype:: ceilometer.api.controllers.v2.Query
+   :members:
+   :samples-slot: after-docstring
