@@ -118,12 +118,12 @@ def _query_to_kwargs(query, db_func):
             kwargs['start_timestamp'] = q_ts['query_start']
             kwargs['end_timestamp'] = q_ts['query_end']
         else:
-            raise ValueError('unrecognized query field %r' % 'timestamp')
+            raise wsme.exc.UnknownArgument('timestamp', "not valid for this resource")
 
     if trans:
         for k in trans:
             if k not in valid_keys:
-                raise ValueError('unrecognized query field %r' % i.field)
+                raise wsme.exc.UnknownArgument(i.field, "unrecognized query field")
             kwargs[k] = trans[k]
 
     return kwargs
@@ -270,9 +270,7 @@ class MeterController(RestController):
         """Return all events for the meter.
         """
         kwargs = _query_to_kwargs(q, storage.EventFilter.__init__)
-        LOG.debug('kwargs %s', kwargs)
         kwargs['meter'] = self._id
-        LOG.debug('in get_all meter samples, kwargs=%s', kwargs)
         f = storage.EventFilter(**kwargs)
         return [Sample(**e)
                 for e in request.storage_conn.get_raw_events(f)
@@ -319,7 +317,6 @@ class MetersController(RestController):
     @wsme.pecan.wsexpose([Meter], [Query])
     def get_all(self, q=[]):
         kwargs = _query_to_kwargs(q, request.storage_conn.get_meters)
-        LOG.debug('in get_all meters kwargs=%s', kwargs)
         return [Meter(**m)
                 for m in request.storage_conn.get_meters(**kwargs)]
 
