@@ -20,7 +20,6 @@ from keystoneclient.v2_0 import client as ksclient
 from oslo.config import cfg
 
 from ceilometer import agent
-from ceilometer import extension_manager
 from ceilometer import service  # For cfg.CONF.os_*
 
 OPTS = [
@@ -34,14 +33,6 @@ cfg.CONF.register_opts(OPTS)
 
 
 class AgentManager(agent.AgentManager):
-
-    def __init__(self):
-        super(AgentManager, self).__init__(
-            extension_manager.ActivatedExtensionManager(
-                namespace='ceilometer.poll.central',
-                disabled_names=cfg.CONF.disabled_central_pollsters,
-            ),
-        )
 
     def periodic_tasks(self, context, raise_on_error=False):
         """Tasks to be run at a periodic interval."""

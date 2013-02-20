@@ -27,13 +27,32 @@ from ceilometer import service as ceilo_service
 from ceilometer.central import manager
 from ceilometer.service import prepare_service
 from ceilometer.openstack.common import service
+from ceilometer import extension_manager
+from ceilometer import pipeline
 
 if __name__ == '__main__':
 
     prepare_service(sys.argv)
-    mgr = manager.AgentManager()
+
+    # Load the central agent pollster plugins
+    ext_mgr = extension_manager.ActivatedExtensionManager(
+        namespace='ceilometer.poll.central',
+        disabled_names=cfg.CONF.disabled_central_pollsters,
+    )
+
+    # Load the publisher plugins
+    publisher_manager = dispatch.NameDispatchExtensionManager(
+        namespace=pipeline.PUBLISHER_NAMESPACE,
+        check_func=lambda x: True,
+        invoke_on_load=True,
+    )
+
+    # Build our pipelines
+    pipline_mgr = pipeline.setup_pipeline(publisher_manager)
+
+    agent_mgr = manager.AgentManager(pipeline_mgr)
     topic = 'ceilometer.agent.central'
     ceilo = ceilo_service.PeriodicService(cfg.CONF.host,
-                                          topic, mgr)
+                                          topic, agent_mgr)
     launcher = service.launch(ceilo)
     launcher.wait()

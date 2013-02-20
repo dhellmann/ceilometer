@@ -23,11 +23,14 @@ import datetime
 import mock
 from oslo.config import cfg
 from keystoneclient.v2_0 import client as ksclient
+from stevedore import dispatch
 from stevedore import extension
+from stevedore.tests import manager as test_manager
 
 from ceilometer.central import manager
 from ceilometer import counter
 from ceilometer.tests import base
+from ceilometer import pipeline
 
 
 @mock.patch('ceilometer.pipeline.setup_pipeline', mock.MagicMock())
@@ -61,18 +64,17 @@ class TestRunTasks(base.TestCase):
     def setUp(self):
         super(TestRunTasks, self).setUp()
         self.stubs.Set(ksclient, 'Client', lambda *args, **kwargs: None)
-        self.mgr = manager.AgentManager()
-
-        self.mgr.pollster_manager = extension.ExtensionManager(
-            'fake',
-            invoke_on_load=False,
+        self.pollster_manager = test_manager.TestExtensionManager([
+            extension.Extension('test', None, None, self.Pollster()),
+        ])
+        publisher_manager = dispatch.NameDispatchExtensionManager(
+            namespace=pipeline.PUBLISHER_NAMESPACE,
+            check_func=lambda x: True,
+            invoke_on_load=True,
         )
-        self.mgr.pollster_manager.extensions = [
-            extension.Extension('test',
-                                None,
-                                None,
-                                self.Pollster(), ),
-        ]
+        pipeline_mgr = pipeline.setup_pipeline(publisher_manager)
+        self.mgr = manager.AgentManager(pipeline_mgr)
+
         # Invoke the periodic tasks to call the pollsters.
         self.mgr.periodic_tasks(None)
 
