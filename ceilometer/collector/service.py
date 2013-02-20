@@ -29,6 +29,10 @@ from ceilometer.openstack.common import log
 from ceilometer.openstack.common import timeutils
 from ceilometer.openstack.common.rpc import dispatcher as rpc_dispatcher
 
+# Import rpc_notifier to register `notification_topics` flag so that
+# plugins can use it
+# FIXME(dhellmann): Use option importing feature of oslo.config instead.
+import ceilometer.openstack.common.notifier.rpc_notifier
 
 OPTS = [
     cfg.ListOpt('disabled_notification_listeners',
